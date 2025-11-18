@@ -37,10 +37,6 @@ router.post('/login', async (req, res) => {
         // Comparar contraseñas
         const passwordValida = await bcrypt.compare(Contraseña, usuario.Contraseña);
         
-        console.log("Contraseña recibida REAL:", req.body.Contraseña);
-        console.log("Hash en DB:", usuario.Contraseña);
-
-
         if (!passwordValida) {
             console.log('Contraseña incorrecta para:', Correo);
             return res.status(401).json({ 
@@ -60,8 +56,12 @@ router.post('/login', async (req, res) => {
         res.json({
             mensaje: 'Inicio de sesión exitoso',
             token,
+            documentoID: usuario.DocumentoID,
             rol: usuario.RolID,
-            nombre: usuario.Nombre
+            nombre: usuario.Nombre,
+            correo: usuario.Correo,
+            telefono: usuario.Telefono,
+            direccion: usuario.Direccion
         });
 
     } catch (error) {
@@ -121,13 +121,26 @@ router.post('/registro', async (req, res) => {
 
         console.log('Usuario registrado:', nuevoUsuario.Correo);
 
+        // Crear token automáticamente después del registro
+        const token = jwt.sign(
+            { id: nuevoUsuario.DocumentoID, rol: nuevoUsuario.RolID },
+            'clave_secreta',
+            { expiresIn: '2h' }
+        );
+
         // No enviar la contraseña en la respuesta
         const usuarioRespuesta = nuevoUsuario.toJSON();
         delete usuarioRespuesta.Contraseña;
 
         res.status(201).json({
+            estado: true,
             mensaje: 'Usuario registrado correctamente',
-            usuario: usuarioRespuesta
+            usuario: usuarioRespuesta,
+            token,
+            documentoID: nuevoUsuario.DocumentoID,
+            nombre: nuevoUsuario.Nombre,
+            correo: nuevoUsuario.Correo,
+            rol: nuevoUsuario.RolID
         });
 
     } catch (error) {
