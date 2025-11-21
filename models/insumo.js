@@ -57,7 +57,7 @@ Insumo.init({
 }, {
   sequelize,
   modelName: 'Insumo',
-  tableName: 'Insumos',
+  tableName: 'insumos',
   timestamps: false
 });
 

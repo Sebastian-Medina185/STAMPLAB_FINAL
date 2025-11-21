@@ -46,9 +46,8 @@ app.get('/', (req, res) => {
             partes: '/api/partes',
 
             // Relaciones de Productos
-            productocolores: '/api/productocolores',
-            productotallas: '/api/productotallas',
             productoinsumos: '/api/productoinsumos',
+            inventarioproducto: '/api/inventarioproducto',
 
             // Proveedores y Compras
             proveedores: '/api/proveedores',
@@ -62,7 +61,6 @@ app.get('/', (req, res) => {
             cotizaciontallas: '/api/cotizaciontallas',
             cotizacioncolores: '/api/cotizacioncolores',
             cotizacioninsumos: '/api/cotizacioninsumos',
-            cotizacionproductos: '/api/cotizacionproductos',
 
             // Ventas
             ventas: '/api/ventas',
@@ -92,9 +90,8 @@ const tecnicasRoutes = require('./routes/tecnicas');
 const partesRoutes = require('./routes/partes');
 
 // Relaciones de Productos
-const productocoloresRoutes = require('./routes/productocolores');
-const productotallasRoutes = require('./routes/productotallas');
 const productoinsumosRoutes = require('./routes/productoinsumos');
+const inventarioproductoRoutes = require('./routes/inventarioproducto');
 
 // Proveedores y Compras
 const proveedoresRoutes = require('./routes/proveedores');
@@ -108,7 +105,6 @@ const cotizaciontecnicasRoutes = require('./routes/cotizaciontecnicas');
 const cotizaciontallasRoutes = require('./routes/cotizaciontallas');
 const cotizacioncoloresRoutes = require('./routes/cotizacioncolores');
 const cotizacioninsumosRoutes = require('./routes/cotizacioninsumos');
-const cotizacionproductosRoutes = require('./routes/cotizacionproductos');
 
 // Ventas
 const ventasRoutes = require('./routes/ventas');
@@ -135,9 +131,8 @@ app.use('/api/tecnicas', tecnicasRoutes);
 app.use('/api/partes', partesRoutes);
 
 // Relaciones de Productos
-app.use('/api/productocolores', productocoloresRoutes);
-app.use('/api/productotallas', productotallasRoutes);
 app.use('/api/productoinsumos', productoinsumosRoutes);
+app.use('/api/inventarioproducto', inventarioproductoRoutes);
 
 // Proveedores y Compras
 app.use('/api/proveedores', proveedoresRoutes);
@@ -151,7 +146,6 @@ app.use('/api/cotizaciontecnicas', cotizaciontecnicasRoutes);
 app.use('/api/cotizaciontallas', cotizaciontallasRoutes);
 app.use('/api/cotizacioncolores', cotizacioncoloresRoutes);
 app.use('/api/cotizacioninsumos', cotizacioninsumosRoutes);
-app.use('/api/cotizacionproductos', cotizacionproductosRoutes);
 
 // Ventas
 app.use('/api/ventas', ventasRoutes);
@@ -179,8 +173,10 @@ app.use((err, req, res, next) => {
 });
 
 // ==================== INICIAR SERVIDOR ====================
+db.sequelize.authenticate()
+    .then(() => {
+        console.log('Conexión a la base de datos exitosa');
 
-db.sequelize.sync().then(() => {
     app.listen(PORT, () => {
         console.log('\n' + '='.repeat(60));
         console.log('SERVIDOR STAMPLAB INICIADO CORRECTAMENTE');
