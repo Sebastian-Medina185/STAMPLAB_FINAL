@@ -4,28 +4,46 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Proveedor extends Model {
     static associate(models) {
-      // Un proveedor tiene muchas compras
       Proveedor.hasMany(models.Compra, { 
-        foreignKey: 'ProveedorID',
+        foreignKey: 'ProveedorRefId',
+        sourceKey: 'id',
         as: 'compras'
       });
     }
   }
   
   Proveedor.init({
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+      // ✅ NO USAR field, porque la columna se llama 'id' directamente
+    },
     Nit: {
-      type: DataTypes.STRING,
-      primaryKey: true
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      unique: true
+      // ✅ NO USAR field, porque la columna se llama 'Nit' directamente
     },
     Nombre: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(255),
       allowNull: false
     },
-    Correo: DataTypes.STRING,
-    Telefono: DataTypes.STRING,
-    Direccion: DataTypes.STRING,
+    Correo: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    Telefono: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    Direccion: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
     Estado: {
-      type: DataTypes.BOOLEAN,
+      type: DataTypes.BOOLEAN,  // tinyint(1) en MySQL = BOOLEAN en Sequelize
+      allowNull: true,
       defaultValue: true
     }
   }, {

@@ -4,9 +4,10 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Compra extends Model {
     static associate(models) {
-      // Una compra pertenece a un proveedor
+      // Una compra pertenece a un proveedor mediante ProveedorRefId
       Compra.belongsTo(models.Proveedor, { 
-        foreignKey: 'ProveedorID',
+        foreignKey: 'ProveedorRefId',
+        targetKey: 'id',
         as: 'proveedor'
       });
       
@@ -14,6 +15,12 @@ module.exports = (sequelize, DataTypes) => {
       Compra.hasMany(models.DetalleCompra, { 
         foreignKey: 'CompraID',
         as: 'detalles'
+      });
+      
+      // ✅ Relación con Estado (si existe la tabla estados)
+      Compra.belongsTo(models.Estado, {
+        foreignKey: 'EstadoID',
+        as: 'estado'
       });
     }
   }
@@ -25,20 +32,24 @@ module.exports = (sequelize, DataTypes) => {
       autoIncrement: true
     },
     ProveedorID: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    ProveedorRefId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
       references: {
-        model: 'Proveedores',
-        key: 'Nit'
+        model: 'proveedores',
+        key: 'id'
       }
     },
     FechaCompra: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
+      allowNull: true
     },
-    Estado: {
-      type: DataTypes.STRING,
-      defaultValue: 'pendiente'
+    EstadoID: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     }
   }, {
     sequelize,
