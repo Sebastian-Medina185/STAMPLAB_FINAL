@@ -1,79 +1,86 @@
-const { Producto, Color, Talla, Insumo, ProductoColor, ProductoTalla, ProductoInsumo } = require('../models');
+// controllers/productoController.js
+const { Producto, InventarioProducto, Color, Talla } = require('../models');
 
-// Obtener todos los productos
+// Obtener todos los productos con sus variantes
 exports.getAllProductos = async (req, res) => {
     try {
         const productos = await Producto.findAll({
             include: [
                 {
-                    model: Color,
-                    as: 'colores',
-                    through: {
-                        model: ProductoColor,
-                        attributes: ['Estado']
-                    }
-                },
-                {
-                    model: Talla,
-                    as: 'tallas',
-                    through: {
-                        model: ProductoTalla,
-                        attributes: ['StockDisponible', 'Estado']
-                    }
-                },
-                {
-                    model: Insumo,
-                    as: 'insumos',
-                    through: { attributes: [] }
+                    model: InventarioProducto,
+                    as: 'inventario',
+                    include: [
+                        { 
+                            model: Color, 
+                            as: 'color',
+                            attributes: ['ColorID', 'Nombre']
+                        },
+                        { 
+                            model: Talla, 
+                            as: 'talla',
+                            attributes: ['TallaID', 'Nombre']
+                        }
+                    ]
                 }
             ]
         });
-        res.json(productos);
+        
+        res.json({
+            estado: true,
+            mensaje: 'Productos obtenidos exitosamente',
+            datos: productos
+        });
     } catch (error) {
+        console.error('Error al obtener productos:', error);
         res.status(500).json({
-            message: 'Error al obtener productos',
+            estado: false,
+            mensaje: 'Error al obtener productos',
             error: error.message
         });
     }
 };
 
-// Obtener un producto por ID
+// Obtener un producto por ID con todas sus relaciones
 exports.getProductoById = async (req, res) => {
     try {
         const producto = await Producto.findByPk(req.params.id, {
             include: [
                 {
-                    model: Color,
-                    as: 'colores',
-                    through: {
-                        model: ProductoColor,
-                        attributes: ['Estado']
-                    }
-                },
-                {
-                    model: Talla,
-                    as: 'tallas',
-                    through: {
-                        model: ProductoTalla,
-                        attributes: ['StockDisponible', 'Estado']
-                    }
-                },
-                {
-                    model: Insumo,
-                    as: 'insumos',
-                    through: { attributes: [] }
+                    model: InventarioProducto,
+                    as: 'inventario',
+                    include: [
+                        { 
+                            model: Color, 
+                            as: 'color',
+                            attributes: ['ColorID', 'Nombre']
+                        },
+                        { 
+                            model: Talla, 
+                            as: 'talla',
+                            attributes: ['TallaID', 'Nombre']
+                        }
+                    ]
                 }
             ]
         });
 
         if (!producto) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return res.status(404).json({ 
+                estado: false,
+                mensaje: 'Producto no encontrado' 
+            });
         }
 
-        res.json(producto);
+        res.json({
+            estado: true,
+            mensaje: 'Producto obtenido exitosamente',
+            datos: producto
+        });
     } catch (error) {
+        console.error('Error al obtener producto:', error);
         res.status(500).json({
-            message: 'Error al obtener producto',
+            estado: false,
+            mensaje: 'Error al obtener producto',
             error: error.message
         });
     }
@@ -91,12 +98,15 @@ exports.createProducto = async (req, res) => {
         });
 
         res.status(201).json({
-            message: 'Producto creado exitosamente',
-            producto: nuevoProducto
+            estado: true,
+            mensaje: 'Producto creado exitosamente',
+            datos: nuevoProducto
         });
     } catch (error) {
+        console.error('Error al crear producto:', error);
         res.status(500).json({
-            message: 'Error al crear producto',
+            estado: false,
+            mensaje: 'Error al crear producto',
             error: error.message
         });
     }
@@ -110,7 +120,10 @@ exports.updateProducto = async (req, res) => {
         const producto = await Producto.findByPk(req.params.id);
 
         if (!producto) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return res.status(404).json({ 
+                estado: false,
+                mensaje: 'Producto no encontrado' 
+            });
         }
 
         await producto.update({
@@ -120,12 +133,15 @@ exports.updateProducto = async (req, res) => {
         });
 
         res.json({
-            message: 'Producto actualizado exitosamente',
-            producto
+            estado: true,
+            mensaje: 'Producto actualizado exitosamente',
+            datos: producto
         });
     } catch (error) {
+        console.error('Error al actualizar producto:', error);
         res.status(500).json({
-            message: 'Error al actualizar producto',
+            estado: false,
+            mensaje: 'Error al actualizar producto',
             error: error.message
         });
     }
@@ -137,75 +153,29 @@ exports.deleteProducto = async (req, res) => {
         const producto = await Producto.findByPk(req.params.id);
 
         if (!producto) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+            return res.status(404).json({ 
+                estado: false,
+                mensaje: 'Producto no encontrado' 
+            });
         }
 
+        // Eliminar primero las variantes (inventario)
+        await InventarioProducto.destroy({
+            where: { ProductoID: req.params.id }
+        });
+
+        // Luego eliminar el producto
         await producto.destroy();
 
-        res.json({ message: 'Producto eliminado exitosamente' });
-    } catch (error) {
-        res.status(500).json({
-            message: 'Error al eliminar producto',
-            error: error.message
-        });
-    }
-};
-
-// Asignar colores a un producto
-exports.asignarColores = async (req, res) => {
-    try {
-        const { coloresIds } = req.body;
-        const producto = await Producto.findByPk(req.params.id);
-
-        if (!producto) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
-        }
-
-        const colores = await Color.findAll({
-            where: { ColorID: coloresIds }
-        });
-
-        await producto.setColores(colores);
-
-        res.json({
-            message: 'Colores asignados exitosamente',
-            producto: await Producto.findByPk(req.params.id, {
-                include: [{ model: Color, as: 'colores' }]
-            })
+        res.json({ 
+            estado: true,
+            mensaje: 'Producto eliminado exitosamente' 
         });
     } catch (error) {
+        console.error('Error al eliminar producto:', error);
         res.status(500).json({
-            message: 'Error al asignar colores',
-            error: error.message
-        });
-    }
-};
-
-// Asignar tallas a un producto
-exports.asignarTallas = async (req, res) => {
-    try {
-        const { tallasIds } = req.body;
-        const producto = await Producto.findByPk(req.params.id);
-
-        if (!producto) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
-        }
-
-        const tallas = await Talla.findAll({
-            where: { TallaID: tallasIds }
-        });
-
-        await producto.setTallas(tallas);
-
-        res.json({
-            message: 'Tallas asignadas exitosamente',
-            producto: await Producto.findByPk(req.params.id, {
-                include: [{ model: Talla, as: 'tallas' }]
-            })
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: 'Error al asignar tallas',
+            estado: false,
+            mensaje: 'Error al eliminar producto',
             error: error.message
         });
     }

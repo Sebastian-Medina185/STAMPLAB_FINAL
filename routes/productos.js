@@ -17,10 +17,5 @@ router.put('/:id', productoController.updateProducto);
 // DELETE /api/productos/:id - Eliminar un producto
 router.delete('/:id', productoController.deleteProducto);
 
-// POST /api/productos/:id/colores - Asignar colores a un producto
-router.post('/:id/colores', productoController.asignarColores);
-
-// POST /api/productos/:id/tallas - Asignar tallas a un producto
-router.post('/:id/tallas', productoController.asignarTallas);
 
 module.exports = router;

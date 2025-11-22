@@ -5,7 +5,12 @@
     "database": "STAMPLAB_NEW",
     "host": "localhost",
     "dialect": "mysql",
-    "port": 3306
+    "port": 3306,
+    "define": {
+      "timestamps": false,
+      "freezeTableName": true,
+      "underscored": false
+    }
   },
   "test": {
     "username": "root",
@@ -13,7 +18,12 @@
     "database": "STAMPLAB_TEST",
     "host": "localhost",
     "dialect": "mysql",
-    "port": 3306
+    "port": 3306,
+    "define": {
+      "timestamps": false,
+      "freezeTableName": true,
+      "underscored": false
+    }
   },
   "production": {
     "username": "root",
@@ -21,6 +31,12 @@
     "database": "STAMPLAB_PROD",
     "host": "localhost",
     "dialect": "mysql",
-    "port": 3306
+    "port": 3306,
+    "logging": false,
+    "define": {
+      "timestamps": false,
+      "freezeTableName": true,
+      "underscored": false
+    }
   }
 }

@@ -15,12 +15,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'DocumentoID',
         as: 'ventas'
       });
-      
-      // Un usuario tiene muchos detalles de cotización
-      Usuario.hasMany(models.DetalleCotizacion, { 
-        foreignKey: 'DocumentoID',
-        as: 'detallesCotizacion'
-      });
     }
   }
   
@@ -55,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Usuario',
-    tableName: 'Usuarios',
+    tableName: 'usuarios',
     timestamps: false
   });
   
