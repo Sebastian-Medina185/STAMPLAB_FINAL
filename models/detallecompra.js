@@ -43,6 +43,11 @@ module.exports = (sequelize, DataTypes) => {
     Cantidad: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    PrecioUnitario: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      comment: 'Precio al que se compró'
     }
   }, {
     sequelize,
