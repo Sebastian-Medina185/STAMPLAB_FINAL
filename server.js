@@ -46,7 +46,6 @@ app.get('/', (req, res) => {
             partes: '/api/partes',
 
             // Relaciones de Productos
-            productoinsumos: '/api/productoinsumos',
             inventarioproducto: '/api/inventarioproducto',
 
             // Proveedores y Compras
@@ -90,7 +89,6 @@ const tecnicasRoutes = require('./routes/tecnicas');
 const partesRoutes = require('./routes/partes');
 
 // Relaciones de Productos
-const productoinsumosRoutes = require('./routes/productoinsumos');
 const inventarioproductoRoutes = require('./routes/inventarioproducto');
 
 // Proveedores y Compras
@@ -131,7 +129,6 @@ app.use('/api/tecnicas', tecnicasRoutes);
 app.use('/api/partes', partesRoutes);
 
 // Relaciones de Productos
-app.use('/api/productoinsumos', productoinsumosRoutes);
 app.use('/api/inventarioproducto', inventarioproductoRoutes);
 
 // Proveedores y Compras
@@ -221,3 +218,4 @@ db.sequelize.authenticate()
     console.error('Error al conectar con la base de datos:', err);
     process.exit(1);
 });
+

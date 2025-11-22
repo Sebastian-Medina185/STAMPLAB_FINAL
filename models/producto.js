@@ -10,14 +10,6 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'inventario'
             });
 
-            // Relación muchos a muchos con Insumos (mantener)
-            Producto.belongsToMany(models.Insumo, {
-                through: models.ProductoInsumo,
-                foreignKey: 'ProductoID',
-                otherKey: 'InsumoID',
-                as: 'insumos'
-            });
-
             // Relación con DetalleVenta (mantener)
             Producto.hasMany(models.DetalleVenta, {
                 foreignKey: 'ProductoID',

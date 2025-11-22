@@ -1,6 +1,5 @@
-const { Producto, InventarioProducto, Color, Talla, Insumo, ProductoInsumo } = require('../models');
-
-
+// controllers/productoController.js
+const { Producto, InventarioProducto, Color, Talla } = require('../models');
 
 // Obtener todos los productos con sus variantes
 exports.getAllProductos = async (req, res) => {
@@ -61,13 +60,6 @@ exports.getProductoById = async (req, res) => {
                             attributes: ['TallaID', 'Nombre']
                         }
                     ]
-                },
-                {
-                    model: Insumo,
-                    as: 'insumos',
-                    through: { 
-                        attributes: ['CantidadNecesaria']
-                    }
                 }
             ]
         });
