@@ -17,11 +17,19 @@ module.exports = (sequelize, DataTypes) => {
         as: 'detalles'
       });
       
+<<<<<<< Updated upstream
       // ❌ ELIMINAR: Esta relación causa el problema
       // Compra.belongsTo(models.Estado, { 
       //   foreignKey: 'EstadoID',
       //   as: 'estado'
       // });
+=======
+      // Una compra pertenece a un estado
+      Compra.belongsTo(models.Estado, { 
+        foreignKey: 'EstadoID',
+        as: 'estado'
+      });
+>>>>>>> Stashed changes
     }
   }
   
@@ -48,9 +56,17 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     EstadoID: {
+<<<<<<< Updated upstream
       type: DataTypes.STRING(50),  // ✅ STRING simple, no FK
       allowNull: true,
       defaultValue: 'Pendiente'
+=======
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Estados',
+        key: 'EstadoID'
+      }
+>>>>>>> Stashed changes
     }
   }, {
     sequelize,
