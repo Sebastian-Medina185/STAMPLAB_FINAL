@@ -70,14 +70,32 @@ exports.createCompra = async (req, res) => {
     try {
         const { ProveedorID, Estado, detalles } = req.body;
 
-        // Crear la compra
+        let proveedorRef = null;
+
+        // 1️⃣ Primero validar / buscar proveedor (nuevo sistema con ProveedorRefId)
+        if (ProveedorID) {
+            const proveedor = await Proveedor.findOne({ where: { Nit: ProveedorID } });
+            if (!proveedor) {
+                return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
+            }
+            proveedorRef = proveedor.id;
+        }
+
+        if (!proveedorRef) {
+            return res.status(400).json({
+                message: 'ProveedorRefId o ProveedorID (Nit) requerido'
+            });
+        }
+
+        // 2️⃣ Crear la compra
         const nuevaCompra = await Compra.create({
-            ProveedorID,
+            ProveedorRefId: proveedorRef,
+            ProveedorID: ProveedorID || null, // legacy opcional
             FechaCompra: new Date(),
             Estado: Estado || 'pendiente'
         });
 
-        // Crear los detalles de la compra
+        // 3️⃣ Crear los detalles
         if (detalles && detalles.length > 0) {
             const detallesConCompraID = detalles.map(detalle => ({
                 CompraID: nuevaCompra.CompraID,
@@ -88,7 +106,7 @@ exports.createCompra = async (req, res) => {
             await DetalleCompra.bulkCreate(detallesConCompraID);
         }
 
-        // Retornar la compra completa con sus detalles
+        // 4️⃣ Obtener la compra completa
         const compraCompleta = await Compra.findByPk(nuevaCompra.CompraID, {
             include: [
                 {
@@ -112,13 +130,16 @@ exports.createCompra = async (req, res) => {
             message: 'Compra creada exitosamente',
             compra: compraCompleta
         });
+
     } catch (error) {
+        console.error(error);
         res.status(500).json({
             message: 'Error al crear compra',
             error: error.message
         });
     }
 };
+
 
 // Actualizar una compra
 exports.updateCompra = async (req, res) => {

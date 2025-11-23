@@ -10,10 +10,16 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'inventario'
             });
 
-            // Relación con DetalleVenta (mantener)
+            // Relación con DetalleVenta
             Producto.hasMany(models.DetalleVenta, {
                 foreignKey: 'ProductoID',
                 as: 'detallesVenta'
+            });
+            
+            // Relación con DetalleCotizacion
+            Producto.hasMany(models.DetalleCotizacion, {
+                foreignKey: 'ProductoID',
+                as: 'detallesCotizacion'
             });
         }
     }
