@@ -1,5 +1,30 @@
+'use strict';
+const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
-    const Talla = sequelize.define('Talla', {
+    class Talla extends Model {
+        static associate(models) {
+            // Relación con InventarioProducto
+            Talla.hasMany(models.InventarioProducto, {
+                foreignKey: 'TallaID',
+                as: 'inventario'
+            });
+
+            // Relación con CotizacionTalla (si existe)
+            Talla.hasMany(models.CotizacionTalla, {
+                foreignKey: 'TallaID',
+                as: 'cotizacionesTalla'
+            });
+
+            // Relación con DetalleVenta (si existe)
+            Talla.hasMany(models.DetalleVenta, {
+                foreignKey: 'TallaID',
+                as: 'detallesVenta'
+            });
+        }
+    }
+
+    Talla.init({
         TallaID: {
             type: DataTypes.INTEGER,
             primaryKey: true,
@@ -11,22 +36,16 @@ module.exports = (sequelize, DataTypes) => {
             unique: true
         },
         Precio: {
-            type: DataTypes.FLOAT,
+            type: DataTypes.DECIMAL(10, 2), // ✅ Cambiar de FLOAT a DECIMAL
             allowNull: true,
             defaultValue: null
         }
     }, {
+        sequelize,
+        modelName: 'Talla',
         tableName: 'tallas',
         timestamps: false
     });
-
-    Talla.associate = function(models) {
-        Talla.belongsToMany(models.Producto, {
-            through: 'ProductoTallas',
-            as: 'productos',
-            foreignKey: 'TallaRefId'
-        });
-    };
 
     return Talla;
 };

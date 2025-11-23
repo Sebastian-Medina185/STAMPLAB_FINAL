@@ -145,6 +145,7 @@ exports.updateProducto = async (req, res) => {
 };
 
 // Obtener producto por ID y eliminar (sin cambios, ya estaban bien)
+// Obtener producto por ID con TODAS las relaciones
 exports.getProductoById = async (req, res) => {
     try {
         const producto = await Producto.findByPk(req.params.id, {
@@ -162,6 +163,12 @@ exports.getProductoById = async (req, res) => {
                             model: Talla,
                             as: 'talla',
                             attributes: ['TallaID', 'Nombre', 'Precio']
+                        },
+                        {
+                            model: Insumo,
+                            as: 'tela', // ✅ AGREGADO
+                            attributes: ['InsumoID', 'Nombre', 'PrecioTela'],
+                            required: false
                         }
                     ]
                 }

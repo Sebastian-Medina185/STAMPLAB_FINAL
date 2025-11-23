@@ -1,23 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const inventarioproductoController = require('../controllers/inventarioproductoController');
+const inventarioController = require('../controllers/inventarioproductoController');
 
-// GET /api/inventarioproducto - Obtener todo el inventario
-router.get('/', inventarioproductoController.getAllInventario);
+// Obtener todo el inventario
+router.get('/', inventarioController.getAllInventario);
 
-// GET /api/inventarioproducto/producto/:productoId - Obtener variantes de un producto
-router.get('/producto/:productoId', inventarioproductoController.getInventarioByProducto);
+// Obtener variantes de un producto específico
+router.get('/producto/:productoId', inventarioController.getInventarioByProducto); 
 
-// GET /api/inventarioproducto/:id - Obtener una variante por ID
-router.get('/:id', inventarioproductoController.getInventarioById);
+// Obtener una variante por ID
+router.get('/:id', inventarioController.getInventarioById);
 
-// POST /api/inventarioproducto - Crear una nueva variante
-router.post('/', inventarioproductoController.createInventario);
+// Crear variante
+router.post('/', inventarioController.createInventario);
 
-// PUT /api/inventarioproducto/:id - Actualizar una variante
-router.put('/:id', inventarioproductoController.updateInventario);
+// Actualizar variante
+router.put('/:id', inventarioController.updateInventario);
 
-// DELETE /api/inventarioproducto/:id - Eliminar una variante
-router.delete('/:id', inventarioproductoController.deleteInventario);
+// Eliminar variante
+router.delete('/:id', inventarioController.deleteInventario);
 
 module.exports = router;
