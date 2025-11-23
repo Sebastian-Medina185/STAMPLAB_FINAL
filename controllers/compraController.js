@@ -66,33 +66,58 @@ exports.getCompraById = async (req, res) => {
 };
 
 // Crear una nueva compra con detalles
-// controllers/compras.js (fragmento)
 exports.createCompra = async (req, res) => {
   try {
-    const { ProveedorID, ProveedorRefId, Estado, detalles } = req.body;
+    const { ProveedorID, ProveedorRefId, EstadoID, detalles } = req.body;
 
-    // Resolver ProveedorRefId si el cliente envió un Nit (ProveedorID)
+    // ✅ Validar que haya detalles
+    if (!detalles || detalles.length === 0) {
+      return res.status(400).json({ message: 'Debe agregar al menos un insumo' });
+    }
+
+    // ✅ Validar cantidades
+    for (const detalle of detalles) {
+      if (!detalle.InsumoID || !detalle.Cantidad) {
+        return res.status(400).json({ message: 'Cada detalle debe tener InsumoID y Cantidad' });
+      }
+      if (detalle.Cantidad <= 0) {
+        return res.status(400).json({ message: 'Las cantidades deben ser mayores a 0' });
+      }
+    }
+
+    // ✅ Resolver tanto ProveedorRefId como el Nit (ProveedorID)
     let proveedorRef = ProveedorRefId || null;
+    let proveedorNit = ProveedorID || null;
 
-    if (!proveedorRef && ProveedorID) {
-      // buscar proveedor por Nit
-      const proveedor = await Proveedor.findOne({ where: { Nit: ProveedorID }});
+    // Si tenemos ProveedorRefId pero no el Nit, buscarlo
+    if (proveedorRef && !proveedorNit) {
+      const proveedor = await Proveedor.findByPk(proveedorRef);
+      if (!proveedor) {
+        return res.status(404).json({ message: 'Proveedor no encontrado' });
+      }
+      proveedorNit = proveedor.Nit; // ✅ Obtener el Nit del proveedor
+    }
+
+    // Si tenemos Nit pero no el ID, buscarlo
+    if (!proveedorRef && proveedorNit) {
+      const proveedor = await Proveedor.findOne({ where: { Nit: proveedorNit }});
       if (!proveedor) {
         return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
       }
       proveedorRef = proveedor.id;
     }
 
-    if (!proveedorRef) {
-      return res.status(400).json({ message: 'ProveedorRefId o ProveedorID (Nit) requerido' });
+    // Validar que tengamos ambos
+    if (!proveedorRef || !proveedorNit) {
+      return res.status(400).json({ message: 'Se requiere un proveedor válido' });
     }
 
-    // Crear la compra
+    // ✅ Crear la compra con AMBOS campos
     const nuevaCompra = await Compra.create({
-      ProveedorRefId: proveedorRef,
-      ProveedorID: ProveedorID || null, // opcionalmente guardar el Nit legacy
+      ProveedorID: proveedorNit,        // ✅ NIT del proveedor (legacy, requerido)
+      ProveedorRefId: proveedorRef,     // ✅ ID del proveedor (nuevo)
       FechaCompra: new Date(),
-      Estado: Estado || 'pendiente'
+      EstadoID: EstadoID || 'Pendiente'  // ✅ Ahora es string         // Por defecto Pendiente (1)
     });
 
     // Crear los detalles de la compra
@@ -131,7 +156,7 @@ exports.createCompra = async (req, res) => {
       compra: compraCompleta
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Error al crear compra:", error);
     res.status(500).json({
       message: 'Error al crear compra',
       error: error.message
@@ -142,7 +167,7 @@ exports.createCompra = async (req, res) => {
 // Actualizar una compra
 exports.updateCompra = async (req, res) => {
     try {
-        const { Estado } = req.body;
+        const { EstadoID } = req.body;
 
         const compra = await Compra.findByPk(req.params.id);
 
@@ -150,8 +175,9 @@ exports.updateCompra = async (req, res) => {
             return res.status(404).json({ message: 'Compra no encontrada' });
         }
 
+        // ✅ Usar EstadoID en lugar de Estado
         await compra.update({
-            Estado: Estado || compra.Estado
+            EstadoID: EstadoID || compra.EstadoID
         });
 
         res.json({

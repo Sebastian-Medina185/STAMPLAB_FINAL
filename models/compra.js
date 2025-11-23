@@ -48,9 +48,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     EstadoID: {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    }
+    type: DataTypes.STRING(50),  // ✅ Cambiar a STRING
+    allowNull: true,
+    defaultValue: 'Pendiente'
+  }
   }, {
     sequelize,
     modelName: 'Compra',
