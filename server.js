@@ -180,7 +180,7 @@ db.sequelize.authenticate()
         console.log('='.repeat(60));
         console.log(`URL: http://localhost:${PORT}`);
         console.log(`Base de datos: ${db.sequelize.config.database}`);
-        console.log(`Dialect: ${db.sequelize.config.dialect}`);
+        console.log(`Dialect: ${db.sequelize.options.dialect}`);
         console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
         console.log('='.repeat(60));
         console.log('ENDPOINTS DISPONIBLES:');

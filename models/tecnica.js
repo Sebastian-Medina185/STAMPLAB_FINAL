@@ -4,20 +4,17 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Tecnica extends Model {
     static associate(models) {
-      // Relación con DetalleVenta
       Tecnica.hasMany(models.DetalleVenta, { 
         foreignKey: 'TecnicaID',
         as: 'detallesVenta'
       });
-      
-      // Relación con CotizacionTecnica
       Tecnica.hasMany(models.CotizacionTecnica, { 
         foreignKey: 'TecnicaID',
         as: 'cotizacionesTecnica'
       });
     }
   }
-  
+
   Tecnica.init({
     TecnicaID: {
       type: DataTypes.INTEGER,
@@ -40,6 +37,6 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'tecnicas',
     timestamps: false
   });
-  
+
   return Tecnica;
 };

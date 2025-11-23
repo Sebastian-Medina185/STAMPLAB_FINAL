@@ -1,110 +1,69 @@
-const { Color, Producto } = require('../models');
+const db = require('../models');
+const Color = db.Color;
 
-// Obtener todos los colores
-exports.getAllColores = async (req, res) => {
+// Listar todos los colores
+const getAllColores = async (req, res) => {
     try {
         const colores = await Color.findAll();
-        res.json(colores);
+        res.json({ estado: true, datos: colores });
     } catch (error) {
-        res.status(500).json({
-            message: 'Error al obtener colores',
-            error: error.message
-        });
+        console.error(error);
+        res.status(500).json({ estado: false, mensaje: "Error al obtener colores" });
     }
 };
 
-// Obtener un color por ID
-exports.getColorById = async (req, res) => {
-    try {
-        const color = await Color.findByPk(req.params.id, {
-            include: [
-                {
-                    model: Producto,
-                    as: 'productos',
-                    through: { attributes: [] }
-                }
-            ]
-        });
-
-        if (!color) {
-            return res.status(404).json({ message: 'Color no encontrado' });
-        }
-
-        res.json(color);
-    } catch (error) {
-        res.status(500).json({
-            message: 'Error al obtener color',
-            error: error.message
-        });
-    }
-};
-
-// Crear un nuevo color
-exports.createColor = async (req, res) => {
-    try {
-        const { Nombre, Cantidad } = req.body;
-
-        const nuevoColor = await Color.create({
-            Nombre,
-            Cantidad: Cantidad || 0
-        });
-
-        res.status(201).json({
-            message: 'Color creado exitosamente',
-            color: nuevoColor
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: 'Error al crear color',
-            error: error.message
-        });
-    }
-};
-
-// Actualizar un color
-exports.updateColor = async (req, res) => {
-    try {
-        const { Nombre, Cantidad } = req.body;
-
-        const color = await Color.findByPk(req.params.id);
-
-        if (!color) {
-            return res.status(404).json({ message: 'Color no encontrado' });
-        }
-
-        await color.update({
-            Nombre: Nombre || color.Nombre,
-            Cantidad: Cantidad !== undefined ? Cantidad : color.Cantidad
-        });
-
-        res.json({
-            message: 'Color actualizado exitosamente',
-            color
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: 'Error al actualizar color',
-            error: error.message
-        });
-    }
-};
-
-// Eliminar un color
-exports.deleteColor = async (req, res) => {
+// Obtener color por ID
+const getColorById = async (req, res) => {
     try {
         const color = await Color.findByPk(req.params.id);
+        if (!color) return res.status(404).json({ estado: false, mensaje: "Color no encontrado" });
+        res.json({ estado: true, datos: color });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ estado: false, mensaje: "Error al obtener color" });
+    }
+};
 
-        if (!color) {
-            return res.status(404).json({ message: 'Color no encontrado' });
-        }
+// Crear color
+const createColor = async (req, res) => {
+    try {
+        const { Nombre } = req.body;
+        if (!Nombre) return res.status(400).json({ estado: false, mensaje: "Nombre requerido" });
+
+        const nuevoColor = await Color.create({ Nombre });
+        res.json({ estado: true, datos: nuevoColor });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ estado: false, mensaje: "Error al crear color" });
+    }
+};
+
+// Actualizar color
+const updateColor = async (req, res) => {
+    try {
+        const color = await Color.findByPk(req.params.id);
+        if (!color) return res.status(404).json({ estado: false, mensaje: "Color no encontrado" });
+        color.Nombre = req.body.Nombre;
+        await color.save();
+        res.json({ estado: true, datos: color });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ estado: false, mensaje: "Error al actualizar color" });
+    }
+};
+
+// Eliminar color
+const deleteColor = async (req, res) => {
+    try {
+        const color = await Color.findByPk(req.params.id);
+        if (!color) return res.status(404).json({ estado: false, mensaje: "Color no encontrado" });
 
         await color.destroy();
-
-        res.json({ message: 'Color eliminado exitosamente' });
+        res.json({ estado: true, mensaje: "Color eliminado correctamente" });
     } catch (error) {
-        res.status(500).json({
-            message: 'Error al eliminar color',
-            error: error.message
-        });
+        console.error(error);
+        res.status(500).json({ estado: false, mensaje: "Error al eliminar color" });
     }
 };
+
+module.exports = { getAllColores, getColorById, createColor, updateColor, deleteColor };
