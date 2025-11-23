@@ -5,68 +5,176 @@ exports.getAllTecnicas = async (req, res) => {
         const tecnicas = await Tecnica.findAll();
         res.json(tecnicas);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener técnicas', error: error.message });
+        console.error('Error en getAllTecnicas:', error);
+        res.status(500).json({ 
+            estado: false,
+            message: 'Error al obtener técnicas', 
+            error: error.message 
+        });
     }
 };
 
 exports.getTecnicaById = async (req, res) => {
     try {
         const tecnica = await Tecnica.findByPk(req.params.id);
-        if (!tecnica) return res.status(404).json({ message: 'Técnica no encontrada' });
+        if (!tecnica) {
+            return res.status(404).json({ 
+                estado: false,
+                message: 'Técnica no encontrada' 
+            });
+        }
         res.json(tecnica);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener técnica', error: error.message });
+        console.error('Error en getTecnicaById:', error);
+        res.status(500).json({ 
+            estado: false,
+            message: 'Error al obtener técnica', 
+            error: error.message 
+        });
     }
 };
 
 exports.createTecnica = async (req, res) => {
     try {
-        // Extraemos los campos exactos que tu modelo espera
-        const { Nombre, Descripcion, ImagenTecnica, Estado } = req.body;
+        console.log('=== CREAR TÉCNICA ===');
+        console.log('Body recibido:', JSON.stringify(req.body).substring(0, 200) + '...');
+        
+        const { Nombre, Descripcion, imagenTecnica, Estado } = req.body;
 
-        if (!Nombre) return res.status(400).json({ message: 'El nombre es obligatorio' });
+        // Validaciones
+        if (!Nombre || !Nombre.trim()) {
+            return res.status(400).json({ 
+                estado: false, 
+                message: 'El nombre es obligatorio' 
+            });
+        }
 
+        if (!imagenTecnica || !imagenTecnica.trim()) {
+            return res.status(400).json({ 
+                estado: false, 
+                message: 'La imagen es obligatoria' 
+            });
+        }
+
+        // Crear técnica
         const nuevaTecnica = await Tecnica.create({
-            Nombre,
-            Descripcion: Descripcion || "",
-            ImagenTecnica: ImagenTecnica || "",
-            Estado: Estado !== undefined ? Estado : true
+            Nombre: Nombre.trim(),
+            Descripcion: Descripcion ? Descripcion.trim() : "",
+            imagenTecnica: imagenTecnica.trim(),
+            Estado: Estado !== undefined ? Boolean(Estado) : true
         });
 
-        res.json({ estado: true, tecnica: nuevaTecnica });
+        console.log('Técnica creada con ID:', nuevaTecnica.TecnicaID);
+
+        res.status(201).json({ 
+            estado: true, 
+            message: 'Técnica creada exitosamente',
+            tecnica: nuevaTecnica 
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error al crear técnica', error: error.message });
+        console.error('Error en createTecnica:', error);
+        console.error('Detalles del error:', {
+            name: error.name,
+            message: error.message,
+            sql: error.sql
+        });
+        
+        res.status(500).json({ 
+            estado: false,
+            message: 'Error al crear técnica', 
+            error: error.message,
+            detalles: error.name === 'SequelizeDatabaseError' ? 'Verifica el tipo de dato de imagenTecnica en la BD' : undefined
+        });
     }
 };
 
 exports.updateTecnica = async (req, res) => {
     try {
+        console.log('=== ACTUALIZAR TÉCNICA ===');
+        console.log('ID:', req.params.id);
+        console.log('Body recibido:', JSON.stringify(req.body).substring(0, 200) + '...');
+        
         const tecnica = await Tecnica.findByPk(req.params.id);
-        if (!tecnica) return res.status(404).json({ message: 'Técnica no encontrada' });
+        
+        if (!tecnica) {
+            return res.status(404).json({ 
+                estado: false,
+                message: 'Técnica no encontrada' 
+            });
+        }
 
-        const { Nombre, Descripcion, ImagenTecnica, Estado } = req.body;
+        const { Nombre, Descripcion, imagenTecnica, Estado } = req.body;
 
-        await tecnica.update({
-            Nombre: Nombre || tecnica.Nombre,
-            Descripcion: Descripcion !== undefined ? Descripcion : tecnica.Descripcion,
-            ImagenTecnica: ImagenTecnica !== undefined ? ImagenTecnica : tecnica.ImagenTecnica,
-            Estado: Estado !== undefined ? Estado : tecnica.Estado
+        // Preparar datos para actualizar
+        const updateData = {};
+        
+        if (Nombre !== undefined) {
+            updateData.Nombre = Nombre.trim();
+        }
+        
+        if (Descripcion !== undefined) {
+            updateData.Descripcion = Descripcion.trim();
+        }
+        
+        if (imagenTecnica !== undefined) {
+            updateData.imagenTecnica = imagenTecnica.trim();
+        }
+        
+        if (Estado !== undefined) {
+            updateData.Estado = Boolean(Estado);
+        }
+
+        console.log('Datos a actualizar:', Object.keys(updateData));
+
+        await tecnica.update(updateData);
+
+        console.log('Técnica actualizada exitosamente');
+
+        res.json({ 
+            estado: true, 
+            message: 'Técnica actualizada exitosamente',
+            tecnica 
         });
-
-        res.json({ estado: true, tecnica });
     } catch (error) {
-        res.status(500).json({ message: 'Error al actualizar técnica', error: error.message });
+        console.error('Error en updateTecnica:', error);
+        console.error('Detalles del error:', {
+            name: error.name,
+            message: error.message,
+            sql: error.sql
+        });
+        
+        res.status(500).json({ 
+            estado: false,
+            message: 'Error al actualizar técnica', 
+            error: error.message,
+            detalles: error.name === 'SequelizeDatabaseError' ? 'Verifica el tipo de dato de imagenTecnica en la BD' : undefined
+        });
     }
 };
 
 exports.deleteTecnica = async (req, res) => {
     try {
         const tecnica = await Tecnica.findByPk(req.params.id);
-        if (!tecnica) return res.status(404).json({ message: 'Técnica no encontrada' });
+        
+        if (!tecnica) {
+            return res.status(404).json({ 
+                estado: false,
+                message: 'Técnica no encontrada' 
+            });
+        }
 
         await tecnica.destroy();
-        res.json({ estado: true });
+        
+        res.json({ 
+            estado: true,
+            message: 'Técnica eliminada exitosamente' 
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error al eliminar técnica', error: error.message });
+        console.error('Error en deleteTecnica:', error);
+        res.status(500).json({ 
+            estado: false,
+            message: 'Error al eliminar técnica', 
+            error: error.message 
+        });
     }
 };
