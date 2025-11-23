@@ -17,13 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         as: 'detalles'
       });
       
-<<<<<<< HEAD
-      // ✅ Relación con Estado (si existe la tabla estados)
-      Compra.belongsTo(models.Estado, {
-=======
       // Una compra pertenece a un estado
       Compra.belongsTo(models.Estado, { 
->>>>>>> 9c93189 (Ultima version)
         foreignKey: 'EstadoID',
         as: 'estado'
       });
@@ -54,14 +49,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     EstadoID: {
       type: DataTypes.INTEGER,
-<<<<<<< HEAD
-      allowNull: true
-=======
       references: {
         model: 'Estados',
         key: 'EstadoID'
       }
->>>>>>> 9c93189 (Ultima version)
     }
   }, {
     sequelize,
