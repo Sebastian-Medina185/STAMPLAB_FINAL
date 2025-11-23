@@ -16,10 +16,10 @@ module.exports = (sequelize, DataTypes) => {
         as: 'detalles'
       });
       
-      // Una venta tiene estados
-      Venta.hasMany(models.Estado, { 
-        foreignKey: 'VentaID',
-        as: 'estados'
+      // Una venta pertenece a un estado
+      Venta.belongsTo(models.Estado, { 
+        foreignKey: 'EstadoID',
+        as: 'estado'
       });
     }
   }
@@ -42,10 +42,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
     },
-    Estado: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true
-    },
     Subtotal: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0
@@ -53,6 +49,13 @@ module.exports = (sequelize, DataTypes) => {
     Total: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0
+    },
+    EstadoID: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Estados',
+        key: 'EstadoID'
+      }
     }
   }, {
     sequelize,

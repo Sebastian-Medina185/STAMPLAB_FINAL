@@ -44,12 +44,13 @@ exports.getDetalleCompraById = async (req, res) => {
 // Crear un detalle de compra
 exports.createDetalleCompra = async (req, res) => {
     try {
-        const { CompraID, InsumoID, Cantidad } = req.body;
+        const { CompraID, InsumoID, Cantidad, PrecioUnitario } = req.body;
 
         const nuevoDetalle = await DetalleCompra.create({
             CompraID,
             InsumoID,
-            Cantidad
+            Cantidad,
+            PrecioUnitario  // Agregar
         });
 
         res.status(201).json({

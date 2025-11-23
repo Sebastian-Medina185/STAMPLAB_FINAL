@@ -1,26 +1,48 @@
 const {
     DetalleCotizacion,
     Cotizacion,
-    Usuario,
+    Producto,
     CotizacionTecnica,
     CotizacionTalla,
     CotizacionColor,
     CotizacionInsumo,
-    CotizacionProducto
+    Tecnica,
+    Talla,
+    Color,
+    Insumo,
+    Parte
 } = require('../models');
 
 // Obtener todos los detalles de cotización
-exports.getAllDetalleCotizaciones = async (req, res) => {
+exports.getAllDetalleCotizaciones = async (req, rpes) => {
     try {
         const detalleCotizaciones = await DetalleCotizacion.findAll({
             include: [
                 { model: Cotizacion, as: 'cotizacion' },
-                { model: Usuario, as: 'usuario', attributes: { exclude: ['Contraseña'] } },
-                { model: CotizacionTecnica, as: 'tecnicas' },
-                { model: CotizacionTalla, as: 'tallas' },
-                { model: CotizacionColor, as: 'colores' },
-                { model: CotizacionInsumo, as: 'insumos' },
-                { model: CotizacionProducto, as: 'productos' }
+                { model: Producto, as: 'producto' },
+                { 
+                    model: CotizacionTecnica, 
+                    as: 'tecnicas',
+                    include: [
+                        { model: Tecnica, as: 'tecnica' },
+                        { model: Parte, as: 'parte' }
+                    ]
+                },
+                { 
+                    model: CotizacionTalla, 
+                    as: 'tallas',
+                    include: [{ model: Talla, as: 'talla' }]
+                },
+                { 
+                    model: CotizacionColor, 
+                    as: 'colores',
+                    include: [{ model: Color, as: 'color' }]
+                },
+                { 
+                    model: CotizacionInsumo, 
+                    as: 'insumos',
+                    include: [{ model: Insumo, as: 'insumo' }]
+                }
             ]
         });
         res.json(detalleCotizaciones);
@@ -38,12 +60,30 @@ exports.getDetalleCotizacionById = async (req, res) => {
         const detalleCotizacion = await DetalleCotizacion.findByPk(req.params.id, {
             include: [
                 { model: Cotizacion, as: 'cotizacion' },
-                { model: Usuario, as: 'usuario', attributes: { exclude: ['Contraseña'] } },
-                { model: CotizacionTecnica, as: 'tecnicas' },
-                { model: CotizacionTalla, as: 'tallas' },
-                { model: CotizacionColor, as: 'colores' },
-                { model: CotizacionInsumo, as: 'insumos' },
-                { model: CotizacionProducto, as: 'productos' }
+                { model: Producto, as: 'producto' },
+                { 
+                    model: CotizacionTecnica, 
+                    as: 'tecnicas',
+                    include: [
+                        { model: Tecnica, as: 'tecnica' },
+                        { model: Parte, as: 'parte' }
+                    ]
+                },
+                { 
+                    model: CotizacionTalla, 
+                    as: 'tallas',
+                    include: [{ model: Talla, as: 'talla' }]
+                },
+                { 
+                    model: CotizacionColor, 
+                    as: 'colores',
+                    include: [{ model: Color, as: 'color' }]
+                },
+                { 
+                    model: CotizacionInsumo, 
+                    as: 'insumos',
+                    include: [{ model: Insumo, as: 'insumo' }]
+                }
             ]
         });
 
@@ -63,11 +103,29 @@ exports.getDetalleCotizacionById = async (req, res) => {
 // Crear un detalle de cotización
 exports.createDetalleCotizacion = async (req, res) => {
     try {
-        const { DocumentoID, CotizacionID, Cantidad, TraePrenda, PrendaDescripcion } = req.body;
+        const { CotizacionID, ProductoID, Cantidad, TraePrenda, PrendaDescripcion } = req.body;
+
+        // Validar que la cotización existe
+        const cotizacion = await Cotizacion.findByPk(CotizacionID);
+        if (!cotizacion) {
+            return res.status(404).json({ 
+                message: 'Cotización no encontrada',
+                CotizacionID: CotizacionID 
+            });
+        }
+
+        // Validar que el producto existe
+        const producto = await Producto.findByPk(ProductoID);
+        if (!producto) {
+            return res.status(404).json({ 
+                message: 'Producto no encontrado',
+                ProductoID: ProductoID 
+            });
+        }
 
         const nuevoDetalle = await DetalleCotizacion.create({
-            DocumentoID,
             CotizacionID,
+            ProductoID,
             Cantidad,
             TraePrenda: TraePrenda || false,
             PrendaDescripcion
@@ -78,6 +136,7 @@ exports.createDetalleCotizacion = async (req, res) => {
             detalleCotizacion: nuevoDetalle
         });
     } catch (error) {
+        console.error('Error completo:', error);
         res.status(500).json({
             message: 'Error al crear detalle de cotización',
             error: error.message
@@ -88,7 +147,7 @@ exports.createDetalleCotizacion = async (req, res) => {
 // Actualizar un detalle de cotización
 exports.updateDetalleCotizacion = async (req, res) => {
     try {
-        const { Cantidad, TraePrenda, PrendaDescripcion } = req.body;
+        const { ProductoID, Cantidad, TraePrenda, PrendaDescripcion } = req.body;
 
         const detalleCotizacion = await DetalleCotizacion.findByPk(req.params.id);
 
@@ -96,7 +155,19 @@ exports.updateDetalleCotizacion = async (req, res) => {
             return res.status(404).json({ message: 'Detalle de cotización no encontrado' });
         }
 
+        // Si se va a actualizar el ProductoID, validar que existe
+        if (ProductoID && ProductoID !== detalleCotizacion.ProductoID) {
+            const producto = await Producto.findByPk(ProductoID);
+            if (!producto) {
+                return res.status(404).json({ 
+                    message: 'Producto no encontrado',
+                    ProductoID: ProductoID 
+                });
+            }
+        }
+
         await detalleCotizacion.update({
+            ProductoID: ProductoID || detalleCotizacion.ProductoID,
             Cantidad: Cantidad || detalleCotizacion.Cantidad,
             TraePrenda: TraePrenda !== undefined ? TraePrenda : detalleCotizacion.TraePrenda,
             PrendaDescripcion: PrendaDescripcion || detalleCotizacion.PrendaDescripcion

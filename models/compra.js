@@ -17,8 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         as: 'detalles'
       });
       
-      // ✅ Relación con Estado (si existe la tabla estados)
-      Compra.belongsTo(models.Estado, {
+      // Una compra pertenece a un estado
+      Compra.belongsTo(models.Estado, { 
         foreignKey: 'EstadoID',
         as: 'estado'
       });
@@ -48,10 +48,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     EstadoID: {
-    type: DataTypes.STRING(50),  // ✅ Cambiar a STRING
-    allowNull: true,
-    defaultValue: 'Pendiente'
-  }
+      type: DataTypes.INTEGER,
+      allowNull: true
+    }
   }, {
     sequelize,
     modelName: 'Compra',

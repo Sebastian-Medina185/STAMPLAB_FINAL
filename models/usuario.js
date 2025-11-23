@@ -15,6 +15,12 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'DocumentoID',
         as: 'ventas'
       });
+      
+      // Un usuario tiene muchas cotizaciones
+      Usuario.hasMany(models.Cotizacion, { 
+        foreignKey: 'DocumentoID',
+        as: 'cotizaciones'
+      });
     }
   }
   

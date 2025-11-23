@@ -1,7 +1,7 @@
 {
   "development": {
     "username": "root",
-    "password": "Jeisson2005",
+    "password": "medina",
     "database": "STAMPLAB_NEW",
     "host": "localhost",
     "dialect": "mysql",
@@ -14,7 +14,7 @@
   },
   "test": {
     "username": "root",
-    "password": "Jeisson2005",
+    "password": "medina",
     "database": "STAMPLAB_TEST",
     "host": "localhost",
     "dialect": "mysql",
@@ -27,7 +27,7 @@
   },
   "production": {
     "username": "root",
-    "password": "Jeisson2005",
+    "password": "medina",
     "database": "STAMPLAB_PROD",
     "host": "localhost",
     "dialect": "mysql",
