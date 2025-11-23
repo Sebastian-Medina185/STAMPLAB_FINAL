@@ -17,11 +17,11 @@ module.exports = (sequelize, DataTypes) => {
         as: 'detalles'
       });
       
-      // Una compra pertenece a un estado
-      Compra.belongsTo(models.Estado, { 
-        foreignKey: 'EstadoID',
-        as: 'estado'
-      });
+      // ❌ ELIMINAR: Esta relación causa el problema
+      // Compra.belongsTo(models.Estado, { 
+      //   foreignKey: 'EstadoID',
+      //   as: 'estado'
+      // });
     }
   }
   
@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     ProveedorID: {
       type: DataTypes.STRING(255),
-      allowNull: true
+      allowNull: false  // ✅ Cambiar a NOT NULL según tu BD
     },
     ProveedorRefId: {
       type: DataTypes.INTEGER,
@@ -48,10 +48,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     EstadoID: {
-    type: DataTypes.STRING(50),  // ✅ Cambiar a STRING
-    allowNull: true,
-    defaultValue: 'Pendiente'
-  }
+      type: DataTypes.STRING(50),  // ✅ STRING simple, no FK
+      allowNull: true,
+      defaultValue: 'Pendiente'
+    }
   }, {
     sequelize,
     modelName: 'Compra',

@@ -146,11 +146,13 @@ exports.deleteProveedor = async (req, res) => {
     }
 
     if (comprasCount > 0) {
-      // Si tiene compras relacionadas, preferimos desactivarlo en lugar de eliminar
+      // ✅ CORRECCIÓN: Si tiene compras relacionadas, desactivarlo y retornar mensaje claro
       proveedor.Estado = false;
       await proveedor.save();
-      return res.json({
-        message: 'Proveedor desactivado porque tiene compras relacionadas',
+      
+      return res.status(200).json({
+        message: 'No se puede eliminar el proveedor porque tiene compras asociadas. Se ha desactivado en su lugar.',
+        accion: 'desactivado', // ✅ Indicador para el frontend
         proveedor
       });
     }
@@ -158,7 +160,10 @@ exports.deleteProveedor = async (req, res) => {
     // Si no tiene compras, se puede eliminar físicamente
     await proveedor.destroy();
 
-    res.json({ message: 'Proveedor eliminado exitosamente' });
+    res.json({ 
+      message: 'Proveedor eliminado exitosamente',
+      accion: 'eliminado' // ✅ Indicador para el frontend
+    });
   } catch (error) {
     res.status(500).json({
       message: 'Error al eliminar proveedor',
