@@ -1,7 +1,6 @@
-// controllers/productoController.js
-const { Producto, InventarioProducto, Color, Talla } = require('../models');
-
 // Obtener todos los productos con sus variantes
+const { Producto, InventarioProducto, Color, Talla, Insumo } = require('../models');
+
 exports.getAllProductos = async (req, res) => {
     try {
         const productos = await Producto.findAll({
@@ -10,21 +9,29 @@ exports.getAllProductos = async (req, res) => {
                     model: InventarioProducto,
                     as: 'inventario',
                     include: [
-                        { 
-                            model: Color, 
+                        {
+                            model: Color,
                             as: 'color',
                             attributes: ['ColorID', 'Nombre']
                         },
-                        { 
-                            model: Talla, 
+                        {
+                            model: Talla,
                             as: 'talla',
-                            attributes: ['TallaID', 'Nombre']
+                            attributes: ['TallaID', 'Nombre', 'Precio']
+                        },
+                        
+                        {
+                            model: Insumo,
+                            as: 'tela',
+                            attributes: ['InsumoID', 'Nombre', 'PrecioTela'],
+                            where: { Tipo: 'Tela' },
+                            required: false 
                         }
                     ]
                 }
             ]
         });
-        
+
         res.json({
             estado: true,
             mensaje: 'Productos obtenidos exitosamente',
@@ -40,61 +47,39 @@ exports.getAllProductos = async (req, res) => {
     }
 };
 
-// Obtener un producto por ID con todas sus relaciones
-exports.getProductoById = async (req, res) => {
-    try {
-        const producto = await Producto.findByPk(req.params.id, {
-            include: [
-                {
-                    model: InventarioProducto,
-                    as: 'inventario',
-                    include: [
-                        { 
-                            model: Color, 
-                            as: 'color',
-                            attributes: ['ColorID', 'Nombre']
-                        },
-                        { 
-                            model: Talla, 
-                            as: 'talla',
-                            attributes: ['TallaID', 'Nombre']
-                        }
-                    ]
-                }
-            ]
-        });
-
-        if (!producto) {
-            return res.status(404).json({ 
-                estado: false,
-                mensaje: 'Producto no encontrado' 
-            });
-        }
-
-        res.json({
-            estado: true,
-            mensaje: 'Producto obtenido exitosamente',
-            datos: producto
-        });
-    } catch (error) {
-        console.error('Error al obtener producto:', error);
-        res.status(500).json({
-            estado: false,
-            mensaje: 'Error al obtener producto',
-            error: error.message
-        });
-    }
-};
-
 // Crear un nuevo producto
 exports.createProducto = async (req, res) => {
     try {
-        const { Nombre, Descripcion, ImagenProducto } = req.body;
+        const { Nombre, Descripcion, PrecioBase, ImagenProducto } = req.body;
+
+        // Validación
+        if (!Nombre || !Nombre.trim()) {
+            return res.status(400).json({
+                estado: false,
+                mensaje: 'El nombre del producto es obligatorio'
+            });
+        }
+
+        if (PrecioBase === undefined || PrecioBase === null) {
+            return res.status(400).json({
+                estado: false,
+                mensaje: 'El precio base del producto es obligatorio'
+            });
+        }
+
+        const precioBaseNum = parseFloat(PrecioBase);
+        if (isNaN(precioBaseNum) || precioBaseNum < 0) {
+            return res.status(400).json({
+                estado: false,
+                mensaje: 'El precio base debe ser un número mayor o igual a 0'
+            });
+        }
 
         const nuevoProducto = await Producto.create({
-            Nombre,
-            Descripcion,
-            ImagenProducto
+            Nombre: Nombre.trim(),
+            Descripcion: Descripcion ? Descripcion.trim() : null,
+            PrecioBase: precioBaseNum,
+            ImagenProducto: ImagenProducto || null
         });
 
         res.status(201).json({
@@ -115,21 +100,33 @@ exports.createProducto = async (req, res) => {
 // Actualizar un producto
 exports.updateProducto = async (req, res) => {
     try {
-        const { Nombre, Descripcion, ImagenProducto } = req.body;
+        const { Nombre, Descripcion, PrecioBase, ImagenProducto } = req.body;
 
         const producto = await Producto.findByPk(req.params.id);
 
         if (!producto) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 estado: false,
-                mensaje: 'Producto no encontrado' 
+                mensaje: 'Producto no encontrado'
             });
         }
 
+        // Validación de precio base si se envía
+        if (PrecioBase !== undefined && PrecioBase !== null) {
+            const precioBaseNum = parseFloat(PrecioBase);
+            if (isNaN(precioBaseNum) || precioBaseNum < 0) {
+                return res.status(400).json({
+                    estado: false,
+                    mensaje: 'El precio base debe ser un número mayor o igual a 0'
+                });
+            }
+        }
+
         await producto.update({
-            Nombre: Nombre || producto.Nombre,
-            Descripcion: Descripcion || producto.Descripcion,
-            ImagenProducto: ImagenProducto || producto.ImagenProducto
+            Nombre: Nombre ? Nombre.trim() : producto.Nombre,
+            Descripcion: Descripcion !== undefined ? (Descripcion ? Descripcion.trim() : null) : producto.Descripcion,
+            PrecioBase: PrecioBase !== undefined ? parseFloat(PrecioBase) : producto.PrecioBase,
+            ImagenProducto: ImagenProducto !== undefined ? ImagenProducto : producto.ImagenProducto
         });
 
         res.json({
@@ -147,15 +144,60 @@ exports.updateProducto = async (req, res) => {
     }
 };
 
-// Eliminar un producto
+// Obtener producto por ID y eliminar (sin cambios, ya estaban bien)
+exports.getProductoById = async (req, res) => {
+    try {
+        const producto = await Producto.findByPk(req.params.id, {
+            include: [
+                {
+                    model: InventarioProducto,
+                    as: 'inventario',
+                    include: [
+                        {
+                            model: Color,
+                            as: 'color',
+                            attributes: ['ColorID', 'Nombre']
+                        },
+                        {
+                            model: Talla,
+                            as: 'talla',
+                            attributes: ['TallaID', 'Nombre', 'Precio']
+                        }
+                    ]
+                }
+            ]
+        });
+
+        if (!producto) {
+            return res.status(404).json({
+                estado: false,
+                mensaje: 'Producto no encontrado'
+            });
+        }
+
+        res.json({
+            estado: true,
+            mensaje: 'Producto obtenido exitosamente',
+            datos: producto
+        });
+    } catch (error) {
+        console.error('Error al obtener producto:', error);
+        res.status(500).json({
+            estado: false,
+            mensaje: 'Error al obtener producto',
+            error: error.message
+        });
+    }
+};
+
 exports.deleteProducto = async (req, res) => {
     try {
         const producto = await Producto.findByPk(req.params.id);
 
         if (!producto) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 estado: false,
-                mensaje: 'Producto no encontrado' 
+                mensaje: 'Producto no encontrado'
             });
         }
 
@@ -164,12 +206,11 @@ exports.deleteProducto = async (req, res) => {
             where: { ProductoID: req.params.id }
         });
 
-        // Luego eliminar el producto
         await producto.destroy();
 
-        res.json({ 
+        res.json({
             estado: true,
-            mensaje: 'Producto eliminado exitosamente' 
+            mensaje: 'Producto eliminado exitosamente'
         });
     } catch (error) {
         console.error('Error al eliminar producto:', error);

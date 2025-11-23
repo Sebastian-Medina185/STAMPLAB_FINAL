@@ -4,22 +4,25 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
     class InventarioProducto extends Model {
         static associate(models) {
-            // Relación con Producto
             InventarioProducto.belongsTo(models.Producto, {
                 foreignKey: 'ProductoID',
                 as: 'producto'
             });
 
-            // Relación con Color
             InventarioProducto.belongsTo(models.Color, {
                 foreignKey: 'ColorID',
                 as: 'color'
             });
 
-            // Relación con Talla
             InventarioProducto.belongsTo(models.Talla, {
                 foreignKey: 'TallaID',
                 as: 'talla'
+            });
+
+            // Nueva relación con Insumo (Tela)
+            InventarioProducto.belongsTo(models.Insumo, {
+                foreignKey: 'TelaID',
+                as: 'tela'
             });
         }
     }
@@ -55,25 +58,33 @@ module.exports = (sequelize, DataTypes) => {
                 key: 'TallaID'
             }
         },
+        
+        TelaID: {
+            type: DataTypes.INTEGER,
+            allowNull: true, // Puede ser NULL para productos sin tela
+            references: {
+                model: 'Insumos',
+                key: 'InsumoID'
+            }
+        },
         Stock: {
             type: DataTypes.INTEGER,
             allowNull: false,
             defaultValue: 0
         },
         Estado: {
-            type: DataTypes.TINYINT(1), // Para MySQL es tinyint(1) que se mapea como boolean
+            type: DataTypes.TINYINT(1),
             allowNull: true,
             defaultValue: 1
         }
     }, {
         sequelize,
         modelName: 'InventarioProducto',
-        tableName: 'inventarioproducto', // Nombre en minúsculas según tu BD
-        timestamps: true, // Activa createdAt y updatedAt
+        tableName: 'inventarioproducto',
+        timestamps: true,
         createdAt: 'createdAt',
         updatedAt: 'updatedAt'
     });
 
     return InventarioProducto;
 };
-

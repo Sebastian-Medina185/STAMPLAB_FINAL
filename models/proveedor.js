@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
-      // ✅ NO USAR field, porque la columna se llama 'id' directamente
+      // NO USAR field, porque la columna se llama 'id' directamente
     },
     Nit: {
       type: DataTypes.STRING(255),

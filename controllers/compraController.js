@@ -67,84 +67,107 @@ exports.getCompraById = async (req, res) => {
 
 // Crear una nueva compra con detalles
 exports.createCompra = async (req, res) => {
-    try {
-        const { ProveedorID, Estado, detalles } = req.body;
+  try {
+    const { ProveedorID, ProveedorRefId, EstadoID, detalles } = req.body;
 
-        let proveedorRef = null;
-
-        // 1️⃣ Primero validar / buscar proveedor (nuevo sistema con ProveedorRefId)
-        if (ProveedorID) {
-            const proveedor = await Proveedor.findOne({ where: { Nit: ProveedorID } });
-            if (!proveedor) {
-                return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
-            }
-            proveedorRef = proveedor.id;
-        }
-
-        if (!proveedorRef) {
-            return res.status(400).json({
-                message: 'ProveedorRefId o ProveedorID (Nit) requerido'
-            });
-        }
-
-        // 2️⃣ Crear la compra
-        const nuevaCompra = await Compra.create({
-            ProveedorRefId: proveedorRef,
-            ProveedorID: ProveedorID || null, // legacy opcional
-            FechaCompra: new Date(),
-            Estado: Estado || 'pendiente'
-        });
-
-        // 3️⃣ Crear los detalles
-        if (detalles && detalles.length > 0) {
-            const detallesConCompraID = detalles.map(detalle => ({
-                CompraID: nuevaCompra.CompraID,
-                InsumoID: detalle.InsumoID,
-                Cantidad: detalle.Cantidad
-            }));
-
-            await DetalleCompra.bulkCreate(detallesConCompraID);
-        }
-
-        // 4️⃣ Obtener la compra completa
-        const compraCompleta = await Compra.findByPk(nuevaCompra.CompraID, {
-            include: [
-                {
-                    model: Proveedor,
-                    as: 'proveedor'
-                },
-                {
-                    model: DetalleCompra,
-                    as: 'detalles',
-                    include: [
-                        {
-                            model: Insumo,
-                            as: 'insumo'
-                        }
-                    ]
-                }
-            ]
-        });
-
-        res.status(201).json({
-            message: 'Compra creada exitosamente',
-            compra: compraCompleta
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: 'Error al crear compra',
-            error: error.message
-        });
+    // ✅ Validar que haya detalles
+    if (!detalles || detalles.length === 0) {
+      return res.status(400).json({ message: 'Debe agregar al menos un insumo' });
     }
-};
 
+    // ✅ Validar cantidades
+    for (const detalle of detalles) {
+      if (!detalle.InsumoID || !detalle.Cantidad) {
+        return res.status(400).json({ message: 'Cada detalle debe tener InsumoID y Cantidad' });
+      }
+      if (detalle.Cantidad <= 0) {
+        return res.status(400).json({ message: 'Las cantidades deben ser mayores a 0' });
+      }
+    }
+
+    // ✅ Resolver tanto ProveedorRefId como el Nit (ProveedorID)
+    let proveedorRef = ProveedorRefId || null;
+    let proveedorNit = ProveedorID || null;
+
+    // Si tenemos ProveedorRefId pero no el Nit, buscarlo
+    if (proveedorRef && !proveedorNit) {
+      const proveedor = await Proveedor.findByPk(proveedorRef);
+      if (!proveedor) {
+        return res.status(404).json({ message: 'Proveedor no encontrado' });
+      }
+      proveedorNit = proveedor.Nit;
+    }
+
+    // Si tenemos Nit pero no el ID, buscarlo
+    if (!proveedorRef && proveedorNit) {
+      const proveedor = await Proveedor.findOne({ where: { Nit: proveedorNit }});
+      if (!proveedor) {
+        return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
+      }
+      proveedorRef = proveedor.id;
+    }
+
+    // Validar que tengamos ambos
+    if (!proveedorRef || !proveedorNit) {
+      return res.status(400).json({ message: 'Se requiere un proveedor válido' });
+    }
+
+    // ✅ Crear la compra con AMBOS campos
+    const nuevaCompra = await Compra.create({
+      ProveedorID: proveedorNit,
+      ProveedorRefId: proveedorRef,
+      FechaCompra: req.body.FechaCompra || new Date(),
+      EstadoID: EstadoID || 'Pendiente'
+    });
+
+    // Crear los detalles
+    if (detalles && detalles.length > 0) {
+      const detallesConCompraID = detalles.map(detalle => ({
+        CompraID: nuevaCompra.CompraID,
+        InsumoID: detalle.InsumoID,
+        Cantidad: detalle.Cantidad
+      }));
+
+      await DetalleCompra.bulkCreate(detallesConCompraID);
+    }
+
+    // Retornar la compra completa
+    const compraCompleta = await Compra.findByPk(nuevaCompra.CompraID, {
+      include: [
+        {
+          model: Proveedor,
+          as: 'proveedor'
+        },
+        {
+          model: DetalleCompra,
+          as: 'detalles',
+          include: [
+            {
+              model: Insumo,
+              as: 'insumo'
+            }
+          ]
+        }
+      ]
+    });
+
+    res.status(201).json({
+      message: 'Compra creada exitosamente',
+      compra: compraCompleta
+    });
+  } catch (error) {
+    console.error("❌ Error al crear compra:", error);
+    res.status(500).json({
+      message: 'Error al crear compra',
+      error: error.message
+    });
+  }
+};
 
 // Actualizar una compra
 exports.updateCompra = async (req, res) => {
     try {
-        const { Estado } = req.body;
+        const { EstadoID } = req.body;
 
         const compra = await Compra.findByPk(req.params.id);
 
@@ -153,7 +176,7 @@ exports.updateCompra = async (req, res) => {
         }
 
         await compra.update({
-            Estado: Estado || compra.Estado
+            EstadoID: EstadoID || compra.EstadoID
         });
 
         res.json({

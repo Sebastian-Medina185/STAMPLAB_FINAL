@@ -1,4 +1,4 @@
-const { InventarioProducto, Producto, Color, Talla } = require('../models');
+const { InventarioProducto, Producto, Color, Talla, Insumo } = require('../models');
 
 // Obtener todas las variantes (inventario)
 exports.getAllInventario = async (req, res) => {
@@ -8,7 +8,7 @@ exports.getAllInventario = async (req, res) => {
                 {
                     model: Producto,
                     as: 'producto',
-                    attributes: ['ProductoID', 'Nombre', 'Descripcion']
+                    attributes: ['ProductoID', 'Nombre', 'Descripcion', 'PrecioBase']
                 },
                 {
                     model: Color,
@@ -18,7 +18,13 @@ exports.getAllInventario = async (req, res) => {
                 {
                     model: Talla,
                     as: 'talla',
-                    attributes: ['TallaID', 'Nombre']
+                    attributes: ['TallaID', 'Nombre', 'Precio']
+                },
+                {
+                    model: Insumo,
+                    as: 'tela',
+                    attributes: ['InsumoID', 'Nombre', 'PrecioTela'],
+                    required: false 
                 }
             ]
         });
@@ -54,7 +60,13 @@ exports.getInventarioByProducto = async (req, res) => {
                 {
                     model: Talla,
                     as: 'talla',
-                    attributes: ['TallaID', 'Nombre']
+                    attributes: ['TallaID', 'Nombre', 'Precio']
+                },
+                {
+                    model: Insumo,
+                    as: 'tela',
+                    attributes: ['InsumoID', 'Nombre', 'PrecioTela'],
+                    required: false // LEFT JOIN para que funcione aunque no tenga tela
                 }
             ]
         });
@@ -79,9 +91,27 @@ exports.getInventarioById = async (req, res) => {
     try {
         const inventario = await InventarioProducto.findByPk(req.params.id, {
             include: [
-                { model: Producto, as: 'producto' },
-                { model: Color, as: 'color' },
-                { model: Talla, as: 'talla' }
+                { 
+                    model: Producto, 
+                    as: 'producto',
+                    attributes: ['ProductoID', 'Nombre', 'PrecioBase']
+                },
+                { 
+                    model: Color, 
+                    as: 'color',
+                    attributes: ['ColorID', 'Nombre']
+                },
+                { 
+                    model: Talla, 
+                    as: 'talla',
+                    attributes: ['TallaID', 'Nombre', 'Precio']
+                },
+                {
+                    model: Insumo,
+                    as: 'tela',
+                    attributes: ['InsumoID', 'Nombre', 'PrecioTela'],
+                    required: false
+                }
             ]
         });
 
@@ -109,36 +139,55 @@ exports.getInventarioById = async (req, res) => {
 // Crear una nueva variante
 exports.createInventario = async (req, res) => {
     try {
-        const { ProductoID, ColorID, TallaID, Stock, Estado } = req.body;
+        const { ProductoID, ColorID, TallaID, TelaID, Stock, Estado } = req.body;
 
-        // Validar que no exista ya esa combinación
+        // Validaciones
+        if (!ProductoID || !ColorID || !TallaID) {
+            return res.status(400).json({
+                estado: false,
+                mensaje: 'ProductoID, ColorID y TallaID son obligatorios'
+            });
+        }
+
+        // Validar que no exista ya esa combinación (incluyendo tela)
         const existe = await InventarioProducto.findOne({
             where: {
                 ProductoID,
                 ColorID,
-                TallaID
+                TallaID,
+                TelaID: TelaID || null
             }
         });
 
         if (existe) {
             return res.status(400).json({
                 estado: false,
-                mensaje: 'Ya existe una variante con esa combinación de color y talla'
+                mensaje: 'Ya existe una variante con esa combinación de color, talla y tela'
             });
         }
 
         const nuevoInventario = await InventarioProducto.create({
-            ProductoID,
-            ColorID,
-            TallaID,
-            Stock: Stock || 0,
-            Estado: Estado !== undefined ? Estado : 1
+            ProductoID: parseInt(ProductoID),
+            ColorID: parseInt(ColorID),
+            TallaID: parseInt(TallaID),
+            TelaID: TelaID ? parseInt(TelaID) : null,
+            Stock: Stock !== undefined ? parseInt(Stock) : 0,
+            Estado: Estado !== undefined ? (Estado ? 1 : 0) : 1
+        });
+
+        // Obtener la variante completa con relaciones
+        const varianteCompleta = await InventarioProducto.findByPk(nuevoInventario.InventarioID, {
+            include: [
+                { model: Color, as: 'color', attributes: ['ColorID', 'Nombre'] },
+                { model: Talla, as: 'talla', attributes: ['TallaID', 'Nombre', 'Precio'] },
+                { model: Insumo, as: 'tela', attributes: ['InsumoID', 'Nombre', 'PrecioTela'], required: false }
+            ]
         });
 
         res.status(201).json({
             estado: true,
             mensaje: 'Variante creada exitosamente',
-            datos: nuevoInventario
+            datos: varianteCompleta
         });
     } catch (error) {
         console.error('Error al crear variante:', error);
@@ -153,7 +202,7 @@ exports.createInventario = async (req, res) => {
 // Actualizar una variante
 exports.updateInventario = async (req, res) => {
     try {
-        const { Stock, Estado } = req.body;
+        const { Stock, TelaID, Estado } = req.body;
 
         const inventario = await InventarioProducto.findByPk(req.params.id);
 
@@ -164,17 +213,30 @@ exports.updateInventario = async (req, res) => {
             });
         }
 
-        await inventario.update({
-            Stock: Stock !== undefined ? Stock : inventario.Stock,
-            Estado: Estado !== undefined ? Estado : inventario.Estado
+        // Preparar datos de actualización
+        const updateData = {};
+        if (Stock !== undefined) updateData.Stock = parseInt(Stock);
+        if (TelaID !== undefined) updateData.TelaID = TelaID ? parseInt(TelaID) : null;
+        if (Estado !== undefined) updateData.Estado = Estado ? 1 : 0;
+
+        await inventario.update(updateData);
+
+        // Obtener la variante actualizada con relaciones
+        const varianteActualizada = await InventarioProducto.findByPk(inventario.InventarioID, {
+            include: [
+                { model: Color, as: 'color', attributes: ['ColorID', 'Nombre'] },
+                { model: Talla, as: 'talla', attributes: ['TallaID', 'Nombre', 'Precio'] },
+                { model: Insumo, as: 'tela', attributes: ['InsumoID', 'Nombre', 'PrecioTela'], required: false }
+            ]
         });
 
         res.json({
             estado: true,
             mensaje: 'Variante actualizada exitosamente',
-            datos: inventario
+            datos: varianteActualizada
         });
     } catch (error) {
+        console.error('Error al actualizar variante:', error);
         res.status(500).json({
             estado: false,
             mensaje: 'Error al actualizar variante',
@@ -202,6 +264,7 @@ exports.deleteInventario = async (req, res) => {
             mensaje: 'Variante eliminada exitosamente'
         });
     } catch (error) {
+        console.error('Error al eliminar variante:', error);
         res.status(500).json({
             estado: false,
             mensaje: 'Error al eliminar variante',

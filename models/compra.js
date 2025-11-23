@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     ProveedorID: {
       type: DataTypes.STRING(255),
-      allowNull: true
+      allowNull: false  // ✅ Cambiar a NOT NULL según tu BD
     },
     ProveedorRefId: {
       type: DataTypes.INTEGER,
