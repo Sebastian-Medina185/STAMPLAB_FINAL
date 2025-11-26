@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const ventaController = require('../controllers/ventaController');
 
+
+router.get('/dashboard', ventaController.getDashboardData);
+
 // GET /api/ventas - Obtener todas las ventas
 router.get('/', ventaController.getAllVentas);
 
