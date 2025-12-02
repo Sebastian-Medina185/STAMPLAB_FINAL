@@ -5,26 +5,26 @@ module.exports = (sequelize, DataTypes) => {
   class Compra extends Model {
     static associate(models) {
       // Una compra pertenece a un proveedor mediante ProveedorRefId
-      Compra.belongsTo(models.Proveedor, { 
+      Compra.belongsTo(models.Proveedor, {
         foreignKey: 'ProveedorRefId',
         targetKey: 'id',
         as: 'proveedor'
       });
-      
+
       // Una compra tiene muchos detalles
-      Compra.hasMany(models.DetalleCompra, { 
+      Compra.hasMany(models.DetalleCompra, {
         foreignKey: 'CompraID',
         as: 'detalles'
       });
-      
-      // Una compra pertenece a un estado
-      Compra.belongsTo(models.Estado, { 
-        foreignKey: 'EstadoID',
-        as: 'estado'
-      });
+
+      // ✅ OPCIONAL: Si tienes tabla Estados
+      // Compra.belongsTo(models.Estado, { 
+      //   foreignKey: 'EstadoID',
+      //   as: 'estado'
+      // });
     }
   }
-  
+
   Compra.init({
     CompraID: {
       type: DataTypes.INTEGER,
@@ -33,7 +33,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     ProveedorID: {
       type: DataTypes.STRING(255),
-      allowNull: false  // ✅ Cambiar a NOT NULL según tu BD
+      allowNull: false,
+      comment: 'Nit del proveedor (campo legacy)'
     },
     ProveedorRefId: {
       type: DataTypes.INTEGER,
@@ -41,18 +42,19 @@ module.exports = (sequelize, DataTypes) => {
       references: {
         model: 'proveedores',
         key: 'id'
-      }
+      },
+      comment: 'FK al id del proveedor (campo nuevo)'
     },
     FechaCompra: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      defaultValue: DataTypes.NOW
     },
     EstadoID: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Estados',
-        key: 'EstadoID'
-      }
+      type: DataTypes.INTEGER,  
+      allowNull: true,
+      defaultValue: 4,  // "Solicitada" por defecto
+      comment: 'FK a la tabla estados'
     }
   }, {
     sequelize,
@@ -60,6 +62,6 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'compras',
     timestamps: false
   });
-  
+
   return Compra;
 };

@@ -1,4 +1,4 @@
-const { DetalleVenta, Venta, Producto, Tecnica } = require('../models');
+const { DetalleVenta, Venta, Producto, Color, Talla } = require('../models');
 
 // Obtener todos los detalles de venta
 exports.getAllDetalleVentas = async (req, res) => {
@@ -7,7 +7,8 @@ exports.getAllDetalleVentas = async (req, res) => {
             include: [
                 { model: Venta, as: 'venta' },
                 { model: Producto, as: 'producto' },
-                { model: Tecnica, as: 'tecnica' }
+                { model: Color, as: 'color' },  // Incluir Color
+                { model: Talla, as: 'talla' }   // Incluir Talla
             ]
         });
         res.json(detalleVentas);
@@ -19,6 +20,7 @@ exports.getAllDetalleVentas = async (req, res) => {
     }
 };
 
+
 // Obtener un detalle de venta por ID
 exports.getDetalleVentaById = async (req, res) => {
     try {
@@ -26,7 +28,8 @@ exports.getDetalleVentaById = async (req, res) => {
             include: [
                 { model: Venta, as: 'venta' },
                 { model: Producto, as: 'producto' },
-                { model: Tecnica, as: 'tecnica' }
+                { model: Color, as: 'color' },  // Incluir Color
+                { model: Talla, as: 'talla' }   // Incluir Talla
             ]
         });
 
@@ -43,15 +46,45 @@ exports.getDetalleVentaById = async (req, res) => {
     }
 };
 
+
 // Crear un detalle de venta
+// exports.createDetalleVenta = async (req, res) => {
+//     try {
+//         const { VentaID, ProductoID } = req.body;
+
+//         const nuevoDetalle = await DetalleVenta.create({
+//             VentaID,
+//             ProductoID,
+//         });
+
+//         res.status(201).json({
+//             message: 'Detalle de venta creado exitosamente',
+//             detalleVenta: nuevoDetalle
+//         });
+//     } catch (error) {
+//         res.status(500).json({
+//             message: 'Error al crear detalle de venta',
+//             error: error.message
+//         });
+//     }
+// };
 exports.createDetalleVenta = async (req, res) => {
     try {
-        const { VentaID, ProductoID, TecnicaID } = req.body;
+        const { VentaID, ProductoID, ColorID, TallaID, Cantidad, PrecioUnitario } = req.body;
 
+        // Validar que los campos obligatorios estén presentes
+        if (!VentaID || !ProductoID || !Cantidad || !PrecioUnitario) {
+            return res.status(400).json({ error: "Faltan datos obligatorios" });
+        }
+
+        // Crear un nuevo detalle de venta
         const nuevoDetalle = await DetalleVenta.create({
             VentaID,
             ProductoID,
-            TecnicaID
+            ColorID,     // Guardamos el color seleccionado
+            TallaID,     // Guardamos la talla seleccionada
+            Cantidad,
+            PrecioUnitario
         });
 
         res.status(201).json({
@@ -66,20 +99,27 @@ exports.createDetalleVenta = async (req, res) => {
     }
 };
 
+
+
 // Actualizar un detalle de venta
 exports.updateDetalleVenta = async (req, res) => {
     try {
-        const { ProductoID, TecnicaID } = req.body;
+        const { ProductoID, ColorID, TallaID, Cantidad, PrecioUnitario } = req.body;
 
+        // Buscar el detalle de venta por ID
         const detalleVenta = await DetalleVenta.findByPk(req.params.id);
 
         if (!detalleVenta) {
             return res.status(404).json({ message: 'Detalle de venta no encontrado' });
         }
 
+        // Actualizar el detalle de venta con los nuevos valores
         await detalleVenta.update({
             ProductoID: ProductoID || detalleVenta.ProductoID,
-            TecnicaID: TecnicaID || detalleVenta.TecnicaID
+            ColorID: ColorID || detalleVenta.ColorID,  // Actualizar el color
+            TallaID: TallaID || detalleVenta.TallaID,  // Actualizar la talla
+            Cantidad: Cantidad || detalleVenta.Cantidad,
+            PrecioUnitario: PrecioUnitario || detalleVenta.PrecioUnitario
         });
 
         res.json({
@@ -93,6 +133,8 @@ exports.updateDetalleVenta = async (req, res) => {
         });
     }
 };
+
+
 
 // Eliminar un detalle de venta
 exports.deleteDetalleVenta = async (req, res) => {

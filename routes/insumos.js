@@ -11,6 +11,9 @@ router.get('/:id', insumoController.getInsumoById);
 // POST /api/insumos - Crear un nuevo insumo
 router.post('/', insumoController.createInsumo);
 
+// Cambiar estado del insumo
+router.patch('/:id/estado', insumoController.cambiarEstadoInsumo);
+
 // PUT /api/insumos/:id - Actualizar un insumo
 router.put('/:id', insumoController.updateInsumo);
 

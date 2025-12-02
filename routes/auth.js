@@ -296,7 +296,7 @@ router.post('/restablecer-password', async (req, res) => {
             Contraseña: hashedPassword 
         });
 
-        console.log('✅ Contraseña actualizada para:', usuario.Correo);
+        console.log('Contraseña actualizada para:', usuario.Correo);
 
         res.json({ 
             mensaje: 'Contraseña restablecida correctamente',
@@ -304,7 +304,7 @@ router.post('/restablecer-password', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error al restablecer contraseña:', error);
+        console.error('Error al restablecer contraseña:', error);
         res.status(500).json({ 
             mensaje: 'Error al restablecer contraseña', 
             error: error.message 

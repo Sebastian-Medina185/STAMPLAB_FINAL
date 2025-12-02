@@ -340,13 +340,17 @@ exports.login = async (req, res) => {
             { expiresIn: '2h' }
         );
 
+
         res.json({
             estado: true,
             mensaje: 'Inicio de sesión exitoso',
             token,
             rol: usuario.RolID,
-            nombre: usuario.Nombre
+            nombre: usuario.Nombre,
+            documentoID: usuario.DocumentoID, 
+            correo: usuario.Correo               
         });
+
 
     } catch (error) {
         console.error('Error en el login:', error);
