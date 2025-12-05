@@ -1,4 +1,17 @@
-const { Venta, Usuario, DetalleVenta, Producto, Tecnica, Insumo, InventarioProducto, sequelize } = require('../models');
+const { 
+    Venta, 
+    Usuario, 
+    DetalleVenta, 
+    Producto, 
+    Tecnica, 
+    Insumo, 
+    InventarioProducto,
+    Color,    
+    Talla,    
+    Estado,   
+    sequelize 
+} = require('../models');
+
 const { Op } = require('sequelize');
 
 // Obtener todas las ventas
