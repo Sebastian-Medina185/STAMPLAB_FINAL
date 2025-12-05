@@ -1,4 +1,5 @@
 'use strict';
+
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
@@ -16,12 +17,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'CompraID',
         as: 'detalles'
       });
-      
-      // Una compra pertenece a un estado
-      Compra.belongsTo(models.Estado, { 
-        foreignKey: 'EstadoID',
-        as: 'estado'
-      });
     }
   }
   
@@ -33,7 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     ProveedorID: {
       type: DataTypes.STRING(255),
-      allowNull: false  // ✅ Cambiar a NOT NULL según tu BD
+      allowNull: false
     },
     ProveedorRefId: {
       type: DataTypes.INTEGER,
@@ -45,14 +40,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     FechaCompra: {
       type: DataTypes.DATE,
-      allowNull: true
-    },
-    EstadoID: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Estados',
-        key: 'EstadoID'
-      }
+      allowNull: true,
+      defaultValue: DataTypes.NOW
     }
   }, {
     sequelize,
