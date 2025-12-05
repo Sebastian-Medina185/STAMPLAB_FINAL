@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
             unique: true
         },
         Precio: {
-            type: DataTypes.DECIMAL(10, 2), // ✅ Cambiar de FLOAT a DECIMAL
+            type: DataTypes.DECIMAL(10, 2),
             allowNull: true,
             defaultValue: null
         }

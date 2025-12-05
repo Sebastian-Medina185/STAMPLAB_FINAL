@@ -1,9 +1,11 @@
-const { Estado, Venta, Cotizacion, Compra } = require('../models');
+const { Estado } = require('../models');
 
 // Obtener todos los estados
 exports.getAllEstados = async (req, res) => {
     try {
-        const estados = await Estado.findAll();
+        const estados = await Estado.findAll({
+            order: [['EstadoID', 'ASC']]
+        });
         res.json(estados);
     } catch (error) {
         res.status(500).json({
@@ -13,13 +15,22 @@ exports.getAllEstados = async (req, res) => {
     }
 };
 
-// Obtener estados por tipo
+// Obtener estados por tipo (venta, cotizacion, compra)
 exports.getEstadosByTipo = async (req, res) => {
     try {
-        const { tipo } = req.params; // cotizacion, venta, compra
+        const { tipo } = req.params;
+        
+        if (!['venta', 'cotizacion', 'compra'].includes(tipo)) {
+            return res.status(400).json({ 
+                message: 'Tipo inválido. Use: venta, cotizacion o compra' 
+            });
+        }
+
         const estados = await Estado.findAll({
-            where: { Tipo: tipo }
+            where: { Tipo: tipo },
+            order: [['EstadoID', 'ASC']]
         });
+
         res.json(estados);
     } catch (error) {
         res.status(500).json({
@@ -52,6 +63,18 @@ exports.createEstado = async (req, res) => {
     try {
         const { Nombre, Tipo, Descripcion } = req.body;
 
+        if (!Nombre || !Tipo) {
+            return res.status(400).json({ 
+                message: 'Nombre y Tipo son obligatorios' 
+            });
+        }
+
+        if (!['venta', 'cotizacion', 'compra'].includes(Tipo)) {
+            return res.status(400).json({ 
+                message: 'Tipo inválido. Use: venta, cotizacion o compra' 
+            });
+        }
+
         const nuevoEstado = await Estado.create({
             Nombre,
             Tipo,
@@ -73,7 +96,7 @@ exports.createEstado = async (req, res) => {
 // Actualizar un estado
 exports.updateEstado = async (req, res) => {
     try {
-        const { Nombre, Descripcion } = req.body;
+        const { Nombre, Tipo, Descripcion } = req.body;
 
         const estado = await Estado.findByPk(req.params.id);
 
@@ -81,9 +104,16 @@ exports.updateEstado = async (req, res) => {
             return res.status(404).json({ message: 'Estado no encontrado' });
         }
 
+        if (Tipo && !['venta', 'cotizacion', 'compra'].includes(Tipo)) {
+            return res.status(400).json({ 
+                message: 'Tipo inválido. Use: venta, cotizacion o compra' 
+            });
+        }
+
         await estado.update({
             Nombre: Nombre || estado.Nombre,
-            Descripcion: Descripcion || estado.Descripcion
+            Tipo: Tipo || estado.Tipo,
+            Descripcion: Descripcion !== undefined ? Descripcion : estado.Descripcion
         });
 
         res.json({

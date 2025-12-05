@@ -1,4 +1,4 @@
-const { Insumo, Producto } = require('../models');
+const { Insumo, Producto, DetalleCompra } = require('../models');
 
 // Obtener todos los insumos
 exports.getAllInsumos = async (req, res) => {
@@ -142,6 +142,52 @@ exports.updateInsumo = async (req, res) => {
   }
 };
 
+// ✅ NUEVO: Cambiar estado del insumo (CON VALIDACIÓN DE COMPRAS)
+exports.cambiarEstadoInsumo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { Estado } = req.body;
+
+    if (Estado === undefined || Estado === null) {
+      return res.status(400).json({ message: 'El campo Estado es requerido' });
+    }
+
+    const insumo = await Insumo.findByPk(id);
+
+    if (!insumo) {
+      return res.status(404).json({ message: 'Insumo no encontrado' });
+    }
+
+    // ✅ VALIDACIÓN: Si intentan desactivar, verificar si tiene compras asociadas
+    if (Estado === false || Estado === 0) {
+      const comprasCount = await DetalleCompra.count({
+        where: { InsumoID: id }
+      });
+
+      if (comprasCount > 0) {
+        return res.status(400).json({
+          message: `No se puede desactivar el insumo porque tiene ${comprasCount} compra(s) asociada(s).`,
+          comprasAsociadas: comprasCount,
+          permitido: false
+        });
+      }
+    }
+
+    // ✅ Cambiar el estado
+    await insumo.update({ Estado });
+
+    res.json({
+      message: 'Estado del insumo actualizado correctamente',
+      insumo
+    });
+  } catch (error) {
+    console.error("Error al cambiar estado del insumo:", error);
+    res.status(500).json({
+      message: 'Error al cambiar estado del insumo',
+      error: error.message
+    });
+  }
+};
 
 // Eliminar un insumo
 exports.deleteInsumo = async (req, res) => {
@@ -150,6 +196,18 @@ exports.deleteInsumo = async (req, res) => {
 
         if (!insumo) {
             return res.status(404).json({ message: 'Insumo no encontrado' });
+        }
+
+        // Validar si tiene compras asociadas antes de eliminar
+        const comprasCount = await DetalleCompra.count({
+            where: { InsumoID: req.params.id }
+        });
+
+        if (comprasCount > 0) {
+            return res.status(400).json({
+                message: `No se puede eliminar el insumo porque tiene ${comprasCount} compra(s) asociada(s).`,
+                comprasAsociadas: comprasCount
+            });
         }
 
         await insumo.destroy();

@@ -53,10 +53,12 @@ router.post('/login', async (req, res) => {
 
         console.log('Login exitoso:', usuario.Nombre);
 
+        // Usar DocumentoID con mayúscula
         res.json({
             mensaje: 'Inicio de sesión exitoso',
             token,
-            documentoID: usuario.DocumentoID,
+            DocumentoID: usuario.DocumentoID,  // Mayuscula
+            documentoID: usuario.DocumentoID,  // También en minúscula para mejor compatibilidad
             rol: usuario.RolID,
             nombre: usuario.Nombre,
             correo: usuario.Correo,
@@ -133,12 +135,14 @@ router.post('/registro', async (req, res) => {
         const usuarioRespuesta = nuevoUsuario.toJSON();
         delete usuarioRespuesta.Contraseña;
 
+        // ✅ CORRECCIÓN: Usar DocumentoID con mayúscula
         res.status(201).json({
             estado: true,
             mensaje: 'Usuario registrado correctamente',
             usuario: usuarioRespuesta,
             token,
-            documentoID: nuevoUsuario.DocumentoID,
+            DocumentoID: nuevoUsuario.DocumentoID,  // ✅ MAYÚSCULA
+            documentoID: nuevoUsuario.DocumentoID,  // ✅ También minúscula para retrocompatibilidad
             nombre: nuevoUsuario.Nombre,
             correo: nuevoUsuario.Correo,
             rol: nuevoUsuario.RolID
@@ -296,7 +300,7 @@ router.post('/restablecer-password', async (req, res) => {
             Contraseña: hashedPassword 
         });
 
-        console.log('✅ Contraseña actualizada para:', usuario.Correo);
+        console.log('Contraseña actualizada para:', usuario.Correo);
 
         res.json({ 
             mensaje: 'Contraseña restablecida correctamente',
@@ -304,7 +308,7 @@ router.post('/restablecer-password', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error al restablecer contraseña:', error);
+        console.error('Error al restablecer contraseña:', error);
         res.status(500).json({ 
             mensaje: 'Error al restablecer contraseña', 
             error: error.message 

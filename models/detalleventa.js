@@ -1,5 +1,6 @@
 'use strict';
 const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
     class DetalleVenta extends Model {
         static associate(models) {
@@ -8,7 +9,6 @@ module.exports = (sequelize, DataTypes) => {
                 as: 'producto'
             });
 
-            // Nueva relacion:
             DetalleVenta.belongsTo(models.Color, {
                 foreignKey: 'ColorID',
                 as: 'color'
@@ -17,11 +17,6 @@ module.exports = (sequelize, DataTypes) => {
             DetalleVenta.belongsTo(models.Talla, {
                 foreignKey: 'TallaID',
                 as: 'talla'
-            });
-
-            DetalleVenta.belongsTo(models.Tecnica, {
-                foreignKey: 'TecnicaID',
-                as: 'tecnica'
             });
 
             DetalleVenta.belongsTo(models.Venta, {
@@ -39,41 +34,19 @@ module.exports = (sequelize, DataTypes) => {
         },
         VentaID: {
             type: DataTypes.INTEGER,
-            allowNull: false,
-            references: {
-                model: 'Ventas',
-                key: 'VentaID'
-            }
+            allowNull: false
         },
         ProductoID: {
             type: DataTypes.INTEGER,
-            allowNull: false,
-            references: {
-                model: 'Productos',
-                key: 'ProductoID'
-            }
+            allowNull: false
         },
         ColorID: {
-            type: DataTypes.INTEGER,
-            references: {
-                model: 'Colores',
-                key: 'ColorID'
-            }
+            type: DataTypes.INTEGER
         },
         TallaID: {
-            type: DataTypes.INTEGER,
-            references: {
-                model: 'Tallas',
-                key: 'TallaID'
-            }
+            type: DataTypes.INTEGER
         },
-        TecnicaID: {
-            type: DataTypes.INTEGER,
-            references: {
-                model: 'Tecnicas',
-                key: 'TecnicaID'
-            }
-        },
+
         Cantidad: {
             type: DataTypes.INTEGER,
             allowNull: false

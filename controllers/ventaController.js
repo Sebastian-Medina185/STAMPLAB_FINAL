@@ -1,4 +1,17 @@
-const { Venta, Usuario, DetalleVenta, Producto, Tecnica, Insumo, InventarioProducto, sequelize } = require('../models');
+const { 
+    Venta, 
+    Usuario, 
+    DetalleVenta, 
+    Producto, 
+    Tecnica, 
+    Insumo, 
+    InventarioProducto,
+    Color,    
+    Talla,    
+    Estado,   
+    sequelize 
+} = require('../models');
+
 const { Op } = require('sequelize');
 
 // Obtener todas las ventas
@@ -16,10 +29,16 @@ exports.getAllVentas = async (req, res) => {
                     as: 'detalles',
                     include: [
                         { model: Producto, as: 'producto' },
-                        { model: Tecnica, as: 'tecnica' }
+                        { model: Color, as: 'color' },
+                        { model: Talla, as: 'talla' }
                     ]
+                },
+                {
+                    model: Estado,
+                    as: 'estado'
                 }
-            ]
+            ],
+            order: [['VentaID', 'DESC']]
         });
         res.json(ventas);
     } catch (error) {
@@ -45,8 +64,13 @@ exports.getVentaById = async (req, res) => {
                     as: 'detalles',
                     include: [
                         { model: Producto, as: 'producto' },
-                        { model: Tecnica, as: 'tecnica' }
+                        { model: Color, as: 'color' },
+                        { model: Talla, as: 'talla' }
                     ]
+                },
+                {
+                    model: Estado,
+                    as: 'estado'
                 }
             ]
         });
@@ -64,84 +88,139 @@ exports.getVentaById = async (req, res) => {
     }
 };
 
-// Crear una nueva venta con detalles
-exports.createVenta = async (req, res) => {
+// CREAR VENTA CON DESCUENTO DE STOCK
+exports.crearVenta = async (req, res) => {
     try {
-        const { DocumentoID, Estado, Subtotal, Total, detalles } = req.body;
+        const { DocumentoID, Subtotal, Total, EstadoID, detalles } = req.body;
+
+        if (!DocumentoID || !detalles || detalles.length === 0) {
+            return res.status(400).json({ error: "Faltan datos obligatorios" });
+        }
+
+        // VALIDAR STOCK ANTES DE CREAR LA VENTA
+        for (const item of detalles) {
+            const variante = await InventarioProducto.findOne({
+                where: {
+                    ProductoID: item.ProductoID,
+                    ColorID: item.ColorID,
+                    TallaID: item.TallaID
+                }
+            });
+
+            if (!variante) {
+                return res.status(400).json({
+                    error: `No existe variante para Producto ${item.ProductoID}, Color ${item.ColorID}, Talla ${item.TallaID}`
+                });
+            }
+
+            if (variante.Stock < item.Cantidad) {
+                return res.status(400).json({
+                    error: `Stock insuficiente. Disponible: ${variante.Stock}, Solicitado: ${item.Cantidad}`
+                });
+            }
+        }
 
         // Crear la venta
         const nuevaVenta = await Venta.create({
             DocumentoID,
-            FechaVenta: new Date(),
-            Estado: Estado !== undefined ? Estado : true,
-            Subtotal: Subtotal || 0,
-            Total: Total || 0
+            Subtotal,
+            Total,
+            EstadoID: EstadoID || 8 // 8 = Pendiente por defecto
         });
 
-        // Crear los detalles de la venta
-        if (detalles && detalles.length > 0) {
-            const detallesConVentaID = detalles.map(detalle => ({
+        // Crear detalles y descontar stock
+        for (const item of detalles) {
+            await DetalleVenta.create({
                 VentaID: nuevaVenta.VentaID,
-                ProductoID: detalle.ProductoID,
-                TecnicaID: detalle.TecnicaID
-            }));
+                ProductoID: item.ProductoID,
+                Cantidad: item.Cantidad,
+                PrecioUnitario: item.PrecioUnitario,
+                ColorID: item.ColorID,
+                TallaID: item.TallaID
+            });
 
-            await DetalleVenta.bulkCreate(detallesConVentaID);
+            // DESCONTAR STOCK
+            await InventarioProducto.decrement(
+                'Stock',
+                {
+                    by: item.Cantidad,
+                    where: {
+                        ProductoID: item.ProductoID,
+                        ColorID: item.ColorID,
+                        TallaID: item.TallaID
+                    }
+                }
+            );
         }
 
-        // Retornar la venta completa
-        const ventaCompleta = await Venta.findByPk(nuevaVenta.VentaID, {
-            include: [
-                {
-                    model: Usuario,
-                    as: 'usuario',
-                    attributes: { exclude: ['Contraseña'] }
-                },
-                {
-                    model: DetalleVenta,
-                    as: 'detalles',
-                    include: [
-                        { model: Producto, as: 'producto' },
-                        { model: Tecnica, as: 'tecnica' }
-                    ]
-                }
-            ]
+        return res.status(201).json({
+            message: "Venta creada correctamente",
+            venta: nuevaVenta
         });
 
-        res.status(201).json({
-            message: 'Venta creada exitosamente',
-            venta: ventaCompleta
-        });
     } catch (error) {
-        res.status(500).json({
-            message: 'Error al crear venta',
+        console.error(error);
+        return res.status(500).json({
+            message: "Error al crear venta",
             error: error.message
         });
     }
 };
 
-// Actualizar una venta
+// ACTUALIZAR VENTA COMPLETA (con detalles)
 exports.updateVenta = async (req, res) => {
     try {
-        const { Estado, Subtotal, Total } = req.body;
+        const { EstadoID, Subtotal, Total, detalles } = req.body;
+        const ventaId = req.params.id;
 
-        const venta = await Venta.findByPk(req.params.id);
+        const venta = await Venta.findByPk(ventaId);
 
         if (!venta) {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
-        await venta.update({
-            Estado: Estado !== undefined ? Estado : venta.Estado,
-            Subtotal: Subtotal !== undefined ? Subtotal : venta.Subtotal,
-            Total: Total !== undefined ? Total : venta.Total
-        });
+        // Si solo se actualiza el estado (cambio de estado desde el modal)
+        if (EstadoID && !detalles) {
+            await venta.update({ EstadoID });
+            return res.json({
+                message: 'Estado actualizado exitosamente',
+                venta
+            });
+        }
+
+        // Si se actualizan los detalles (edición completa)
+        if (detalles && detalles.length > 0) {
+            // Eliminar detalles antiguos
+            await DetalleVenta.destroy({
+                where: { VentaID: ventaId }
+            });
+
+            // Crear nuevos detalles
+            for (const item of detalles) {
+                await DetalleVenta.create({
+                    VentaID: ventaId,
+                    ProductoID: item.ProductoID,
+                    Cantidad: item.Cantidad,
+                    PrecioUnitario: item.PrecioUnitario,
+                    ColorID: item.ColorID,
+                    TallaID: item.TallaID
+                });
+            }
+
+            // Actualizar totales
+            await venta.update({
+                Subtotal: Subtotal || venta.Subtotal,
+                Total: Total || venta.Total,
+                EstadoID: EstadoID || venta.EstadoID
+            });
+        }
 
         res.json({
             message: 'Venta actualizada exitosamente',
             venta
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({
             message: 'Error al actualizar venta',
             error: error.message

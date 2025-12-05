@@ -2,32 +2,32 @@ const { Compra, Proveedor, DetalleCompra, Insumo } = require('../models');
 
 // Obtener todas las compras
 exports.getAllCompras = async (req, res) => {
-  try {
-    const compras = await Compra.findAll({
-      include: [
-        {
-          model: Proveedor,
-          as: 'proveedor'
-        },
-        {
-          model: DetalleCompra,
-          as: 'detalles',
-          include: [
-            {
-              model: Insumo,
-              as: 'insumo'
-            }
-          ]
-        }
-      ]
-    });
-    res.json(compras);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener compras',
-      error: error.message
-    });
-  }
+    try {
+        const compras = await Compra.findAll({
+            include: [
+                {
+                    model: Proveedor,
+                    as: 'proveedor'
+                },
+                {
+                    model: DetalleCompra,
+                    as: 'detalles',
+                    include: [
+                        {
+                            model: Insumo,
+                            as: 'insumo'
+                        }
+                    ]
+                }
+            ]
+        });
+        res.json(compras);
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error al obtener compras',
+            error: error.message
+        });
+    }
 };
 
 // Obtener una compra por ID
@@ -56,26 +56,26 @@ exports.getCompraById = async (req, res) => {
       return res.status(404).json({ message: 'Compra no encontrada' });
     }
 
-    res.json(compra);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al obtener compra',
-      error: error.message
-    });
-  }
+        res.json(compra);
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error al obtener compra',
+            error: error.message
+        });
+    }
 };
 
 // Crear una nueva compra con detalles
 exports.createCompra = async (req, res) => {
   try {
-    const { ProveedorID, ProveedorRefId, detalles } = req.body;
+    const { ProveedorID, ProveedorRefId, EstadoID, detalles } = req.body;
 
     // Validar que haya detalles
     if (!detalles || detalles.length === 0) {
       return res.status(400).json({ message: 'Debe agregar al menos un insumo' });
     }
 
-    // Validar cantidades
+    // ✅ Validar cantidades
     for (const detalle of detalles) {
       if (!detalle.InsumoID || !detalle.Cantidad) {
         return res.status(400).json({ 
@@ -83,62 +83,72 @@ exports.createCompra = async (req, res) => {
         });
       }
       if (detalle.Cantidad <= 0) {
-        return res.status(400).json({ 
-          message: 'Las cantidades deben ser mayores a 0' 
-        });
+        return res.status(400).json({ message: 'Las cantidades deben ser mayores a 0' });
       }
     }
 
-    // Resolver ProveedorRefId y Nit (ProveedorID)
+    // ✅ Resolver tanto ProveedorRefId como el Nit (ProveedorID)
     let proveedorRef = ProveedorRefId || null;
     let proveedorNit = ProveedorID || null;
 
-    // Si tenemos ProveedorRefId pero no el Nit, buscarlo
+    console.log("Antes de validar proveedor:", { proveedorRef, proveedorNit });
+
+    // Si solo tenemos ProveedorRefId, buscar el proveedor completo
     if (proveedorRef && !proveedorNit) {
+      console.log("Buscando proveedor por ID:", proveedorRef);
       const proveedor = await Proveedor.findByPk(proveedorRef);
+      
       if (!proveedor) {
-        return res.status(404).json({ message: 'Proveedor no encontrado' });
+        console.error("Proveedor no encontrado con ID:", proveedorRef);
+        return res.status(404).json({ 
+          message: 'Proveedor no encontrado',
+          proveedorBuscado: proveedorRef
+        });
       }
+      
       proveedorNit = proveedor.Nit;
+      console.log("Proveedor encontrado:", { id: proveedor.id, Nit: proveedor.Nit, Nombre: proveedor.Nombre });
     }
 
     // Si tenemos Nit pero no el ID, buscarlo
     if (!proveedorRef && proveedorNit) {
-      const proveedor = await Proveedor.findOne({ 
-        where: { Nit: proveedorNit }
-      });
+      const proveedor = await Proveedor.findOne({ where: { Nit: proveedorNit }});
       if (!proveedor) {
-        return res.status(404).json({ 
-          message: 'Proveedor (Nit) no existe' 
-        });
+        return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
       }
+      
       proveedorRef = proveedor.id;
+      console.log("Proveedor encontrado:", { id: proveedor.id, Nit: proveedor.Nit, Nombre: proveedor.Nombre });
     }
 
     // Validar que tengamos ambos
     if (!proveedorRef || !proveedorNit) {
-      return res.status(400).json({ 
-        message: 'Se requiere un proveedor válido' 
-      });
+      return res.status(400).json({ message: 'Se requiere un proveedor válido' });
     }
 
-    // Crear la compra (sin EstadoID)
+    console.log("Proveedor validado correctamente:", { proveedorRef, proveedorNit });
+
+    // ✅ Crear la compra con AMBOS campos
     const nuevaCompra = await Compra.create({
       ProveedorID: proveedorNit,
       ProveedorRefId: proveedorRef,
-      FechaCompra: req.body.FechaCompra || new Date()
+      FechaCompra: req.body.FechaCompra || new Date(),
+      EstadoID: EstadoID || 'Pendiente'
     });
 
-    // Crear los detalles
-    if (detalles && detalles.length > 0) {
-      const detallesConCompraID = detalles.map(detalle => ({
-        CompraID: nuevaCompra.CompraID,
-        InsumoID: detalle.InsumoID,
-        Cantidad: detalle.Cantidad
-      }));
+    console.log("Compra creada exitosamente con ID:", nuevaCompra.CompraID);
 
-      await DetalleCompra.bulkCreate(detallesConCompraID);
-    }
+    // Crear los detalles
+    const detallesConCompraID = detalles.map(detalle => ({
+      CompraID: nuevaCompra.CompraID,
+      InsumoID: detalle.InsumoID,
+      Cantidad: detalle.Cantidad,
+      PrecioUnitario: detalle.PrecioUnitario || 0
+    }));
+
+    await DetalleCompra.bulkCreate(detallesConCompraID);
+
+    console.log("Detalles creados:", detallesConCompraID.length);
 
     // Retornar la compra completa
     const compraCompleta = await Compra.findByPk(nuevaCompra.CompraID, {
@@ -164,11 +174,14 @@ exports.createCompra = async (req, res) => {
       message: 'Compra creada exitosamente',
       compra: compraCompleta
     });
+    
   } catch (error) {
-    console.error("❌ Error al crear compra:", error);
+    console.error("Error al crear compra:", error);
+    console.error("Stack trace:", error.stack);
     res.status(500).json({
       message: 'Error al crear compra',
-      error: error.message
+      error: error.message,
+      details: error.stack
     });
   }
 };
@@ -184,80 +197,20 @@ exports.updateCompra = async (req, res) => {
       return res.status(404).json({ message: 'Compra no encontrada' });
     }
 
-    // Resolver proveedor si cambió
-    let proveedorRef = ProveedorRefId || compra.ProveedorRefId;
-    let proveedorNit = ProveedorID || compra.ProveedorID;
+        await compra.update({
+            EstadoID: EstadoID || compra.EstadoID
+        });
 
-    if (ProveedorRefId && !proveedorNit) {
-      const proveedor = await Proveedor.findByPk(ProveedorRefId);
-      if (!proveedor) {
-        return res.status(404).json({ message: 'Proveedor no encontrado' });
-      }
-      proveedorNit = proveedor.Nit;
+        res.json({
+            message: 'Compra actualizada exitosamente',
+            compra
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error al actualizar compra',
+            error: error.message
+        });
     }
-
-    if (ProveedorID && !proveedorRef) {
-      const proveedor = await Proveedor.findOne({ where: { Nit: ProveedorID }});
-      if (!proveedor) {
-        return res.status(404).json({ message: 'Proveedor (Nit) no existe' });
-      }
-      proveedorRef = proveedor.id;
-    }
-
-    // Actualizar la compra
-    await compra.update({
-      ProveedorID: proveedorNit,
-      ProveedorRefId: proveedorRef,
-      FechaCompra: FechaCompra || compra.FechaCompra
-    });
-
-    // Si hay detalles nuevos, actualizar
-    if (detalles && detalles.length > 0) {
-      // Eliminar detalles anteriores
-      await DetalleCompra.destroy({
-        where: { CompraID: req.params.id }
-      });
-
-      // Crear nuevos detalles
-      const detallesConCompraID = detalles.map(detalle => ({
-        CompraID: compra.CompraID,
-        InsumoID: detalle.InsumoID,
-        Cantidad: detalle.Cantidad
-      }));
-
-      await DetalleCompra.bulkCreate(detallesConCompraID);
-    }
-
-    // Retornar la compra actualizada
-    const compraActualizada = await Compra.findByPk(compra.CompraID, {
-      include: [
-        {
-          model: Proveedor,
-          as: 'proveedor'
-        },
-        {
-          model: DetalleCompra,
-          as: 'detalles',
-          include: [
-            {
-              model: Insumo,
-              as: 'insumo'
-            }
-          ]
-        }
-      ]
-    });
-
-    res.json({
-      message: 'Compra actualizada exitosamente',
-      compra: compraActualizada
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al actualizar compra',
-      error: error.message
-    });
-  }
 };
 
 // Eliminar una compra
@@ -277,11 +230,11 @@ exports.deleteCompra = async (req, res) => {
     // Luego eliminar la compra
     await compra.destroy();
 
-    res.json({ message: 'Compra eliminada exitosamente' });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error al eliminar compra',
-      error: error.message
-    });
-  }
+        res.json({ message: 'Compra eliminada exitosamente' });
+    } catch (error) {
+        res.status(500).json({
+            message: 'Error al eliminar compra',
+            error: error.message
+        });
+    }
 };
