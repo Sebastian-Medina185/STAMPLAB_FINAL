@@ -12,30 +12,525 @@ const {
     Color,
     Insumo,
     Producto,
-    Parte
+    Parte,
+    Venta,
+    DetalleVenta,
+    InventarioProducto
 } = require('../models');
 
-// Obtener todas las cotizaciones
-exports.getAllCotizaciones = async (req, res) => {
+// ============================================
+// FUNCIÓN PRINCIPAL: CREAR COTIZACIÓN INTELIGENTE
+// ============================================
+exports.createCotizacionInteligente = async (req, res) => {
     try {
-        const cotizaciones = await Cotizacion.findAll({
+        const { DocumentoID, FechaCotizacion, detalles } = req.body;
+
+        console.log('\n' + '='.repeat(60));
+        console.log('ANÁLISIS DE COTIZACIÓN INTELIGENTE');
+        console.log('='.repeat(60));
+        console.log('DocumentoID:', DocumentoID);
+        console.log('Detalles recibidos:', detalles?.length || 0);
+
+        // ========================================
+        // VALIDACIONES BÁSICAS
+        // ========================================
+        if (!DocumentoID) {
+            return res.status(400).json({
+                message: 'DocumentoID es obligatorio',
+                receivedData: req.body
+            });
+        }
+
+        if (!detalles || detalles.length === 0) {
+            return res.status(400).json({
+                message: 'Debe incluir al menos un producto',
+                receivedData: req.body
+            });
+        }
+
+        // Validar que el usuario existe
+        const usuario = await Usuario.findByPk(DocumentoID);
+        if (!usuario) {
+            return res.status(404).json({ 
+                message: 'Usuario no encontrado',
+                DocumentoID: DocumentoID
+            });
+        }
+
+        console.log('Usuario encontrado:', usuario.Nombre);
+
+        // ========================================
+        // DETECTAR SI HAY DISEÑOS (TÉCNICAS)
+        // ========================================
+        const tieneDiseños = detalles.some(detalle => 
+            detalle.tecnicas && 
+            Array.isArray(detalle.tecnicas) && 
+            detalle.tecnicas.length > 0
+        );
+
+        console.log('\nAnálisis de contenido:');
+        console.log('   - Tiene diseños aplicados:', tieneDiseños ? 'SÍ' : 'NO');
+
+        // ========================================
+        // DECISIÓN: COTIZACIÓN O VENTA DIRECTA
+        // ========================================
+        if (!tieneDiseños) {
+            console.log('\nRUTA: VENTA DIRECTA (sin diseños)');
+            console.log('   → Se creará una VENTA PENDIENTE');
+            return await crearVentaDirecta(req, res, { DocumentoID, FechaCotizacion, detalles, usuario });
+        } else {
+            console.log('\nRUTA: COTIZACIÓN (con diseños)');
+            console.log('   → Se creará una COTIZACIÓN normal');
+            return await crearCotizacionConDiseños(req, res, { DocumentoID, FechaCotizacion, detalles, usuario });
+        }
+
+    } catch (error) {
+        console.error('\n' + '='.repeat(60));
+        console.error('ERROR EN COTIZACIÓN INTELIGENTE');
+        console.error('='.repeat(60));
+        console.error('Error:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('='.repeat(60) + '\n');
+        
+        res.status(500).json({
+            message: 'Error al procesar la solicitud',
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
+// ============================================
+// CREAR VENTA DIRECTA (SIN DISEÑOS) + DESCUENTO DE STOCK
+// ============================================
+async function crearVentaDirecta(req, res, { DocumentoID, FechaCotizacion, detalles, usuario }) {
+    try {
+        console.log('\nCREANDO VENTA DIRECTA...');
+
+        let subtotal = 0;
+        const detallesCalculados = [];
+
+        // ========================================
+        // PASO 1: VALIDAR STOCK DISPONIBLE
+        // ========================================
+        console.log('\n🔍 VALIDANDO STOCK DISPONIBLE...');
+        for (const detalle of detalles) {
+            const colorID = detalle.colores?.[0]?.ColorID;
+            const tallaID = detalle.tallas?.[0]?.TallaID;
+            const cantidad = parseInt(detalle.Cantidad);
+
+            if (!colorID || !tallaID) {
+                throw new Error('Se requiere Color y Talla para validar stock');
+            }
+
+            // Buscar variante en inventario
+            const variante = await InventarioProducto.findOne({
+                where: {
+                    ProductoID: detalle.ProductoID,
+                    ColorID: colorID,
+                    TallaID: tallaID
+                }
+            });
+
+            if (!variante) {
+                throw new Error(
+                    `No existe variante para Producto ${detalle.ProductoID}, ` +
+                    `Color ${colorID}, Talla ${tallaID}`
+                );
+            }
+
+            if (variante.Stock < cantidad) {
+                throw new Error(
+                    `Stock insuficiente para ${variante.producto?.Nombre || 'producto'}. ` +
+                    `Disponible: ${variante.Stock}, Solicitado: ${cantidad}`
+                );
+            }
+
+            console.log(`   ✓ Stock validado - Producto ${detalle.ProductoID}: ${variante.Stock} disponibles`);
+        }
+
+        // ========================================
+        // PASO 2: CALCULAR PRECIOS
+        // ========================================
+        console.log('\n💰 CALCULANDO PRECIOS...');
+        for (const detalle of detalles) {
+            const producto = await Producto.findByPk(detalle.ProductoID);
+            if (!producto) {
+                throw new Error(`Producto ${detalle.ProductoID} no encontrado`);
+            }
+
+            const tallaID = detalle.tallas?.[0]?.TallaID;
+            const talla = tallaID ? await Talla.findByPk(tallaID) : null;
+
+            const insumoID = detalle.insumos?.[0]?.InsumoID;
+            const tela = insumoID ? await Insumo.findByPk(insumoID) : null;
+
+            const colorID = detalle.colores?.[0]?.ColorID;
+
+            const precioBase = parseFloat(producto.PrecioBase) || 0;
+            const precioTalla = parseFloat(talla?.Precio) || 0;
+            const precioTela = parseFloat(tela?.PrecioTela) || 0;
+            const precioUnitario = precioBase + precioTalla + precioTela;
+            const subtotalDetalle = precioUnitario * detalle.Cantidad;
+
+            console.log(`   - ${producto.Nombre}:`);
+            console.log(`     Precio base: $${precioBase.toLocaleString()}`);
+            console.log(`     Precio talla: $${precioTalla.toLocaleString()}`);
+            console.log(`     Precio tela: $${precioTela.toLocaleString()}`);
+            console.log(`     Precio unitario: $${precioUnitario.toLocaleString()}`);
+            console.log(`     Cantidad: ${detalle.Cantidad}`);
+            console.log(`     Subtotal: $${subtotalDetalle.toLocaleString()}`);
+
+            subtotal += subtotalDetalle;
+
+            detallesCalculados.push({
+                ProductoID: detalle.ProductoID,
+                ColorID: colorID || null,
+                TallaID: tallaID || null,
+                Cantidad: detalle.Cantidad,
+                PrecioUnitario: precioUnitario
+            });
+        }
+
+        console.log(`\n📊 Subtotal total: $${subtotal.toLocaleString()}`);
+
+        // ========================================
+        // PASO 3: CREAR LA VENTA
+        // ========================================
+        console.log('\n📝 CREANDO VENTA...');
+        const nuevaVenta = await Venta.create({
+            DocumentoID,
+            FechaVenta: FechaCotizacion || new Date(),
+            Subtotal: subtotal,
+            Total: subtotal,
+            EstadoID: 8 // PENDIENTE
+        });
+
+        console.log(`✓ Venta creada con ID: ${nuevaVenta.VentaID}`);
+
+        // ========================================
+        // PASO 4: CREAR DETALLES DE VENTA
+        // ========================================
+        for (const detalle of detallesCalculados) {
+            await DetalleVenta.create({
+                VentaID: nuevaVenta.VentaID,
+                ...detalle
+            });
+        }
+
+        console.log(`✓ ${detallesCalculados.length} detalles de venta creados`);
+
+        // ========================================
+        // PASO 5: DESCONTAR STOCK INMEDIATAMENTE
+        // ========================================
+        console.log('\n📦 DESCONTANDO STOCK...');
+        for (const detalle of detallesCalculados) {
+            await InventarioProducto.decrement(
+                'Stock',
+                {
+                    by: detalle.Cantidad,
+                    where: {
+                        ProductoID: detalle.ProductoID,
+                        ColorID: detalle.ColorID,
+                        TallaID: detalle.TallaID
+                    }
+                }
+            );
+
+            console.log(`   ✓ Descontado ${detalle.Cantidad} unidades de Producto ${detalle.ProductoID}`);
+        }
+
+        console.log('='.repeat(60) + '\n');
+
+        return res.status(201).json({
+            tipo: 'venta',
+            message: 'Venta pendiente creada exitosamente',
+            mensaje: 'Tu pedido ha sido registrado y está pendiente de procesamiento. El stock ha sido reservado.',
+            venta: nuevaVenta,
+            detalles: detallesCalculados
+        });
+
+    } catch (error) {
+        console.error('❌ Error al crear venta directa:', error);
+        throw error;
+    }
+}
+
+// ============================================
+// CREAR COTIZACIÓN CON DISEÑOS (SIN DESCUENTO DE STOCK)
+// ============================================
+async function crearCotizacionConDiseños(req, res, { DocumentoID, FechaCotizacion, detalles, usuario }) {
+    try {
+        console.log('\nCREANDO COTIZACIÓN CON DISEÑOS...');
+        console.log('⚠️  El stock NO se descuenta en cotizaciones (solo es presupuesto)');
+
+        // Crear la cotización con estado "Pendiente" (EstadoID = 1)
+        const nuevaCotizacion = await Cotizacion.create({
+            DocumentoID,
+            FechaCotizacion: FechaCotizacion || new Date(),
+            ValorTotal: 0,
+            EstadoID: 1 // PENDIENTE
+        });
+
+        console.log(`Cotización creada con ID: ${nuevaCotizacion.CotizacionID}`);
+
+        // Crear los detalles con todos sus datos
+        for (let i = 0; i < detalles.length; i++) {
+            const detalle = detalles[i];
+            console.log(`\n   Detalle ${i + 1}/${detalles.length}:`);
+            
+            const nuevoDetalle = await DetalleCotizacion.create({
+                CotizacionID: nuevaCotizacion.CotizacionID,
+                ProductoID: detalle.ProductoID,
+                Cantidad: detalle.Cantidad,
+                TraePrenda: detalle.TraePrenda || false,
+                PrendaDescripcion: detalle.PrendaDescripcion
+            });
+
+            // Crear técnicas asociadas
+            if (detalle.tecnicas && detalle.tecnicas.length > 0) {
+                const tecnicasData = detalle.tecnicas.map(t => ({
+                    DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
+                    TecnicaID: t.TecnicaID,
+                    ParteID: t.ParteID,
+                    ImagenDiseño: t.ImagenDiseño,
+                    Observaciones: t.Observaciones,
+                    CostoTecnica: t.CostoTecnica || 0
+                }));
+                await CotizacionTecnica.bulkCreate(tecnicasData);
+            }
+
+            // Crear tallas, colores, insumos
+            if (detalle.tallas && detalle.tallas.length > 0) {
+                await CotizacionTalla.bulkCreate(detalle.tallas.map(t => ({
+                    DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
+                    TallaID: t.TallaID,
+                    Cantidad: t.Cantidad,
+                    PrecioTalla: t.PrecioTalla || 0
+                })));
+            }
+
+            if (detalle.colores && detalle.colores.length > 0) {
+                await CotizacionColor.bulkCreate(detalle.colores.map(c => ({
+                    DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
+                    ColorID: c.ColorID,
+                    Cantidad: c.Cantidad
+                })));
+            }
+
+            if (detalle.insumos && detalle.insumos.length > 0) {
+                await CotizacionInsumo.bulkCreate(detalle.insumos.map(i => ({
+                    DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
+                    InsumoID: i.InsumoID,
+                    CantidadRequerida: i.CantidadRequerida
+                })));
+            }
+        }
+
+        // Retornar la cotización completa
+        const cotizacionCompleta = await Cotizacion.findByPk(nuevaCotizacion.CotizacionID, {
             include: [
-                {
-                    model: Usuario,
-                    as: 'usuario'
-                },
-                {
-                    model: Estado,
-                    as: 'estado'
-                },
+                { model: Usuario, as: 'usuario' },
+                { model: Estado, as: 'estado' },
                 {
                     model: DetalleCotizacion,
                     as: 'detalles',
                     include: [
-                        {
-                            model: Producto,
-                            as: 'producto'
+                        { model: Producto, as: 'producto' },
+                        { 
+                            model: CotizacionTecnica, 
+                            as: 'tecnicas',
+                            include: [
+                                { model: Tecnica, as: 'tecnica' },
+                                { model: Parte, as: 'parte' }
+                            ]
                         },
+                        { 
+                            model: CotizacionTalla, 
+                            as: 'tallas',
+                            include: [{ model: Talla, as: 'talla' }]
+                        },
+                        { 
+                            model: CotizacionColor, 
+                            as: 'colores',
+                            include: [{ model: Color, as: 'color' }]
+                        },
+                        { 
+                            model: CotizacionInsumo, 
+                            as: 'insumos',
+                            include: [{ model: Insumo, as: 'insumo' }]
+                        }
+                    ]
+                }
+            ]
+        });
+
+        console.log('='.repeat(60));
+        console.log('COTIZACIÓN CON DISEÑOS CREADA EXITOSAMENTE');
+        console.log('='.repeat(60) + '\n');
+
+        return res.status(201).json({
+            tipo: 'cotizacion',
+            message: 'Cotización creada exitosamente',
+            mensaje: 'Tu cotización ha sido registrada. El administrador asignará los costos de los diseños y te contactará pronto. El stock se descontará cuando se convierta en venta.',
+            cotizacion: cotizacionCompleta
+        });
+
+    } catch (error) {
+        console.error('Error al crear cotización con diseños:', error);
+        throw error;
+    }
+}
+
+// ============================================
+// NUEVA FUNCIÓN: CONVERTIR COTIZACIÓN A VENTA
+// ============================================
+exports.convertirCotizacionAVenta = async (req, res) => {
+    try {
+        const { cotizacionID } = req.params;
+
+        console.log('\n' + '='.repeat(60));
+        console.log('CONVIRTIENDO COTIZACIÓN A VENTA');
+        console.log('='.repeat(60));
+
+        // Obtener cotización completa
+        const cotizacion = await Cotizacion.findByPk(cotizacionID, {
+            include: [
+                {
+                    model: DetalleCotizacion,
+                    as: 'detalles',
+                    include: [
+                        { model: Producto, as: 'producto' },
+                        { model: CotizacionTalla, as: 'tallas', include: [{ model: Talla, as: 'talla' }] },
+                        { model: CotizacionColor, as: 'colores' },
+                        { model: CotizacionInsumo, as: 'insumos', include: [{ model: Insumo, as: 'insumo' }] },
+                        { model: CotizacionTecnica, as: 'tecnicas' }
+                    ]
+                }
+            ]
+        });
+
+        if (!cotizacion) {
+            return res.status(404).json({ message: 'Cotización no encontrada' });
+        }
+
+        if (cotizacion.EstadoID !== 2) { // 2 = Aprobada
+            return res.status(400).json({ 
+                message: 'Solo se pueden convertir cotizaciones aprobadas',
+                estadoActual: cotizacion.EstadoID
+            });
+        }
+
+        // ========================================
+        // VALIDAR STOCK DISPONIBLE
+        // ========================================
+        console.log('\n🔍 VALIDANDO STOCK...');
+        for (const detalle of cotizacion.detalles) {
+            const colorID = detalle.colores?.[0]?.ColorID;
+            const tallaID = detalle.tallas?.[0]?.TallaID;
+
+            if (!colorID || !tallaID) {
+                throw new Error('Cotización sin color/talla especificada');
+            }
+
+            const variante = await InventarioProducto.findOne({
+                where: {
+                    ProductoID: detalle.ProductoID,
+                    ColorID: colorID,
+                    TallaID: tallaID
+                }
+            });
+
+            if (!variante || variante.Stock < detalle.Cantidad) {
+                throw new Error(
+                    `Stock insuficiente para ${detalle.producto?.Nombre}. ` +
+                    `Disponible: ${variante?.Stock || 0}, Necesario: ${detalle.Cantidad}`
+                );
+            }
+        }
+
+        // ========================================
+        // CREAR VENTA
+        // ========================================
+        console.log('\n📝 CREANDO VENTA...');
+        const nuevaVenta = await Venta.create({
+            DocumentoID: cotizacion.DocumentoID,
+            FechaVenta: new Date(),
+            Subtotal: cotizacion.ValorTotal,
+            Total: cotizacion.ValorTotal,
+            EstadoID: 8 // PENDIENTE
+        });
+
+        // Crear detalles de venta
+        for (const detalle of cotizacion.detalles) {
+            const tallaID = detalle.tallas?.[0]?.TallaID;
+            const colorID = detalle.colores?.[0]?.ColorID;
+            
+            // Calcular precio unitario
+            const precioBase = parseFloat(detalle.producto.PrecioBase) || 0;
+            const precioTalla = parseFloat(detalle.tallas?.[0]?.talla?.Precio) || 0;
+            const precioTela = parseFloat(detalle.insumos?.[0]?.insumo?.PrecioTela) || 0;
+            const costoTecnicas = detalle.tecnicas?.reduce((sum, t) => sum + (parseFloat(t.CostoTecnica) || 0), 0) || 0;
+            const precioUnitario = precioBase + precioTalla + precioTela + costoTecnicas;
+
+            await DetalleVenta.create({
+                VentaID: nuevaVenta.VentaID,
+                ProductoID: detalle.ProductoID,
+                ColorID: colorID,
+                TallaID: tallaID,
+                Cantidad: detalle.Cantidad,
+                PrecioUnitario: precioUnitario
+            });
+
+            // DESCONTAR STOCK
+            await InventarioProducto.decrement('Stock', {
+                by: detalle.Cantidad,
+                where: {
+                    ProductoID: detalle.ProductoID,
+                    ColorID: colorID,
+                    TallaID: tallaID
+                }
+            });
+
+            console.log(`   ✓ Stock descontado: ${detalle.Cantidad} unidades`);
+        }
+
+        // Actualizar estado de cotización a "Convertida" (puedes crear un nuevo estado si quieres)
+        await cotizacion.update({ EstadoID: 3 }); // 3 = Convertida/Procesada
+
+        console.log('='.repeat(60));
+        console.log('CONVERSIÓN EXITOSA');
+        console.log('='.repeat(60) + '\n');
+
+        return res.status(201).json({
+            message: 'Cotización convertida a venta exitosamente',
+            venta: nuevaVenta,
+            cotizacionID: cotizacion.CotizacionID
+        });
+
+    } catch (error) {
+        console.error('Error al convertir cotización:', error);
+        res.status(500).json({
+            message: 'Error al convertir cotización',
+            error: error.message
+        });
+    }
+};
+
+// ============================================
+// MANTENER FUNCIONES ORIGINALES
+// ============================================
+exports.getAllCotizaciones = async (req, res) => {
+    try {
+        const cotizaciones = await Cotizacion.findAll({
+            include: [
+                { model: Usuario, as: 'usuario' },
+                { model: Estado, as: 'estado' },
+                {
+                    model: DetalleCotizacion,
+                    as: 'detalles',
+                    include: [
+                        { model: Producto, as: 'producto' },
                         {
                             model: CotizacionTecnica,
                             as: 'tecnicas',
@@ -72,27 +567,17 @@ exports.getAllCotizaciones = async (req, res) => {
     }
 };
 
-// Obtener una cotización por ID
 exports.getCotizacionById = async (req, res) => {
     try {
         const cotizacion = await Cotizacion.findByPk(req.params.id, {
             include: [
-                {
-                    model: Usuario,
-                    as: 'usuario'
-                },
-                {
-                    model: Estado,
-                    as: 'estado'
-                },
+                { model: Usuario, as: 'usuario' },
+                { model: Estado, as: 'estado' },
                 {
                     model: DetalleCotizacion,
                     as: 'detalles',
                     include: [
-                        {
-                            model: Producto,
-                            as: 'producto'
-                        },
+                        { model: Producto, as: 'producto' },
                         {
                             model: CotizacionTecnica,
                             as: 'tecnicas',
@@ -134,258 +619,9 @@ exports.getCotizacionById = async (req, res) => {
     }
 };
 
-// Crear una nueva cotización (SIMPLE - solo la cabecera)
-exports.createCotizacion = async (req, res) => {
-    try {
-        const { DocumentoID, FechaCotizacion, ValorTotal, EstadoID } = req.body;
-
-        console.log('Creando cotización simple con DocumentoID:', DocumentoID);
-
-        // Validar que el usuario existe
-        const usuario = await Usuario.findByPk(DocumentoID);
-        if (!usuario) {
-            console.error('Usuario no encontrado:', DocumentoID);
-            return res.status(404).json({ 
-                message: 'Usuario no encontrado',
-                DocumentoID: DocumentoID 
-            });
-        }
-
-        // Validar que el estado existe
-        if (EstadoID) {
-            const estado = await Estado.findByPk(EstadoID);
-            if (!estado) {
-                return res.status(404).json({ 
-                    message: 'Estado no encontrado',
-                    EstadoID: EstadoID 
-                });
-            }
-        }
-
-        // Crear la cotización
-        const nuevaCotizacion = await Cotizacion.create({
-            DocumentoID,
-            FechaCotizacion: FechaCotizacion || new Date(),
-            ValorTotal: ValorTotal || 0,
-            EstadoID
-        });
-
-        console.log('Cotización creada exitosamente:', nuevaCotizacion.CotizacionID);
-
-        res.status(201).json({
-            message: 'Cotización creada exitosamente',
-            cotizacion: nuevaCotizacion
-        });
-    } catch (error) {
-        console.error('Error completo al crear cotización:', error);
-        res.status(500).json({
-            message: 'Error al crear cotización',
-            error: error.message
-        });
-    }
-};
-
-// Crear una cotización completa (con todos los detalles)
-exports.createCotizacionCompleta = async (req, res) => {
-    try {
-        const {
-            DocumentoID,
-            FechaCotizacion,
-            ValorTotal,
-            EstadoID,
-            detalles
-        } = req.body;
-
-        console.log('\n' + '='.repeat(60));
-        console.log('CREAR COTIZACIÓN COMPLETA - INICIO');
-        console.log('='.repeat(60));
-        console.log('DocumentoID recibido:', DocumentoID);
-        console.log('Tipo de DocumentoID:', typeof DocumentoID);
-        console.log('EstadoID:', EstadoID);
-        console.log('Cantidad de detalles:', detalles?.length || 0);
-        console.log('='.repeat(60));
-
-        // Validar datos obligatorios
-        if (!DocumentoID) {
-            console.error('ERROR: DocumentoID no proporcionado');
-            return res.status(400).json({
-                message: 'DocumentoID es obligatorio',
-                receivedData: req.body
-            });
-        }
-
-        // Validar que el usuario existe
-        console.log('Buscando usuario con DocumentoID:', DocumentoID);
-        const usuario = await Usuario.findByPk(DocumentoID);
-        
-        if (!usuario) {
-            console.error('ERROR: Usuario NO encontrado en la base de datos');
-            console.error('DocumentoID buscado:', DocumentoID);
-            
-            // Listar algunos usuarios para debug
-            const todosUsuarios = await Usuario.findAll({
-                attributes: ['DocumentoID', 'Nombre'],
-                limit: 5
-            });
-            console.log('Usuarios disponibles en BD (primeros 5):');
-            todosUsuarios.forEach(u => {
-                console.log(`   - DocumentoID: ${u.DocumentoID} (${typeof u.DocumentoID}), Nombre: ${u.Nombre}`);
-            });
-            
-            return res.status(404).json({ 
-                message: 'Usuario no encontrado',
-                DocumentoID: DocumentoID,
-                tipoRecibido: typeof DocumentoID,
-                debug: 'Verifica que el DocumentoID exista en la base de datos'
-            });
-        }
-
-        console.log('Usuario encontrado:', usuario.Nombre, '(Doc:', usuario.DocumentoID, ')');
-
-        // Crear la cotización
-        console.log('Creando cotización...');
-        const nuevaCotizacion = await Cotizacion.create({
-            DocumentoID,
-            FechaCotizacion: FechaCotizacion || new Date(),
-            ValorTotal: ValorTotal || 0,
-            EstadoID
-        });
-
-        console.log('Cotización creada con ID:', nuevaCotizacion.CotizacionID);
-
-        // Crear los detalles si vienen
-        if (detalles && detalles.length > 0) {
-            console.log(`Procesando ${detalles.length} detalles...`);
-            
-            for (let i = 0; i < detalles.length; i++) {
-                const detalle = detalles[i];
-                console.log(`\n   Detalle ${i + 1}/${detalles.length}:`);
-                console.log(`      - ProductoID: ${detalle.ProductoID}`);
-                console.log(`      - Cantidad: ${detalle.Cantidad}`);
-                console.log(`      - TraePrenda: ${detalle.TraePrenda}`);
-                
-                const nuevoDetalle = await DetalleCotizacion.create({
-                    CotizacionID: nuevaCotizacion.CotizacionID,
-                    ProductoID: detalle.ProductoID,
-                    Cantidad: detalle.Cantidad,
-                    TraePrenda: detalle.TraePrenda || false,
-                    PrendaDescripcion: detalle.PrendaDescripcion
-                });
-
-                console.log(`      Detalle creado con ID: ${nuevoDetalle.DetalleCotizacionID}`);
-
-                // Crear técnicas asociadas
-                if (detalle.tecnicas && detalle.tecnicas.length > 0) {
-                    console.log(`      Agregando ${detalle.tecnicas.length} técnicas...`);
-                    const tecnicasData = detalle.tecnicas.map(t => ({
-                        DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
-                        TecnicaID: t.TecnicaID,
-                        ParteID: t.ParteID,
-                        ImagenDiseño: t.ImagenDiseño,
-                        Observaciones: t.Observaciones,
-                        CostoTecnica: t.CostoTecnica || 0
-                    }));
-                    await CotizacionTecnica.bulkCreate(tecnicasData);
-                    console.log(`      ${tecnicasData.length} técnicas agregadas`);
-                }
-
-                // Crear tallas asociadas
-                if (detalle.tallas && detalle.tallas.length > 0) {
-                    console.log(`      Agregando ${detalle.tallas.length} tallas...`);
-                    const tallasData = detalle.tallas.map(t => ({
-                        DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
-                        TallaID: t.TallaID,
-                        Cantidad: t.Cantidad,
-                        PrecioTalla: t.PrecioTalla || 0
-                    }));
-                    await CotizacionTalla.bulkCreate(tallasData);
-                    console.log(`      ${tallasData.length} tallas agregadas`);
-                }
-
-                // Crear colores asociados
-                if (detalle.colores && detalle.colores.length > 0) {
-                    console.log(`      Agregando ${detalle.colores.length} colores...`);
-                    const coloresData = detalle.colores.map(c => ({
-                        DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
-                        ColorID: c.ColorID,
-                        Cantidad: c.Cantidad
-                    }));
-                    await CotizacionColor.bulkCreate(coloresData);
-                    console.log(`      ${coloresData.length} colores agregados`);
-                }
-
-                // Crear insumos asociados
-                if (detalle.insumos && detalle.insumos.length > 0) {
-                    console.log(`      Agregando ${detalle.insumos.length} insumos...`);
-                    const insumosData = detalle.insumos.map(i => ({
-                        DetalleCotizacionID: nuevoDetalle.DetalleCotizacionID,
-                        InsumoID: i.InsumoID,
-                        CantidadRequerida: i.CantidadRequerida
-                    }));
-                    await CotizacionInsumo.bulkCreate(insumosData);
-                    console.log(`      ${insumosData.length} insumos agregados`);
-                }
-            }
-        }
-
-        // Retornar la cotización completa
-        console.log('Buscando cotización completa con includes...');
-        const cotizacionCompleta = await Cotizacion.findByPk(nuevaCotizacion.CotizacionID, {
-            include: [
-                {
-                    model: Usuario,
-                    as: 'usuario'
-                },
-                {
-                    model: Estado,
-                    as: 'estado'
-                },
-                {
-                    model: DetalleCotizacion,
-                    as: 'detalles',
-                    include: [
-                        { model: Producto, as: 'producto' },
-                        { model: CotizacionTecnica, as: 'tecnicas' },
-                        { model: CotizacionTalla, as: 'tallas' },
-                        { model: CotizacionColor, as: 'colores' },
-                        { model: CotizacionInsumo, as: 'insumos' }
-                    ]
-                }
-            ]
-        });
-
-        console.log('='.repeat(60));
-        console.log('COTIZACIÓN COMPLETA CREADA EXITOSAMENTE');
-        console.log('   ID Cotización:', nuevaCotizacion.CotizacionID);
-        console.log('   Cliente:', usuario.Nombre);
-        console.log('   Detalles:', detalles?.length || 0);
-        console.log('='.repeat(60) + '\n');
-
-        res.status(201).json({
-            message: 'Cotización completa creada exitosamente',
-            cotizacion: cotizacionCompleta
-        });
-    } catch (error) {
-        console.error('\n' + '='.repeat(60));
-        console.error('ERROR AL CREAR COTIZACIÓN COMPLETA');
-        console.error('='.repeat(60));
-        console.error('Error:', error.message);
-        console.error('Stack:', error.stack);
-        console.error('='.repeat(60) + '\n');
-        
-        res.status(500).json({
-            message: 'Error al crear cotización completa',
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
-    }
-};
-
-// Actualizar una cotización
 exports.updateCotizacion = async (req, res) => {
     try {
         const { ValorTotal, EstadoID } = req.body;
-
         const cotizacion = await Cotizacion.findByPk(req.params.id);
 
         if (!cotizacion) {
@@ -409,7 +645,6 @@ exports.updateCotizacion = async (req, res) => {
     }
 };
 
-// Eliminar una cotización
 exports.deleteCotizacion = async (req, res) => {
     try {
         const cotizacion = await Cotizacion.findByPk(req.params.id);
@@ -419,7 +654,6 @@ exports.deleteCotizacion = async (req, res) => {
         }
 
         await cotizacion.destroy();
-
         res.json({ message: 'Cotización eliminada exitosamente' });
     } catch (error) {
         res.status(500).json({
@@ -429,8 +663,6 @@ exports.deleteCotizacion = async (req, res) => {
     }
 };
 
-
-// controllers/cotizacionController.js - Agregar función auxiliar
 const calcularValorTotalCotizacion = async (cotizacionID) => {
     try {
         const cotizacion = await Cotizacion.findByPk(cotizacionID, {
@@ -439,15 +671,10 @@ const calcularValorTotalCotizacion = async (cotizacionID) => {
                     model: DetalleCotizacion,
                     as: 'detalles',
                     include: [
-                        {
-                            model: CotizacionTecnica,
-                            as: 'tecnicas'
-                        },
-                        {
-                            model: CotizacionTalla,
-                            as: 'tallas',
-                            include: [{ model: Talla, as: 'talla' }]
-                        }
+                        { model: Producto, as: 'producto' },
+                        { model: CotizacionTecnica, as: 'tecnicas' },
+                        { model: CotizacionTalla, as: 'tallas', include: [{ model: Talla, as: 'talla' }] },
+                        { model: CotizacionInsumo, as: 'insumos', include: [{ model: Insumo, as: 'insumo' }] }
                     ]
                 }
             ]
@@ -457,131 +684,44 @@ const calcularValorTotalCotizacion = async (cotizacionID) => {
 
         let total = 0;
 
-        // Sumar costos de técnicas
         for (const detalle of cotizacion.detalles) {
-            if (detalle.tecnicas) {
-                for (const tecnica of detalle.tecnicas) {
-                    total += parseFloat(tecnica.CostoTecnica || 0);
+            let subtotalDetalle = 0;
+            
+            const precioBase = parseFloat(detalle.producto?.PrecioBase || 0);
+            subtotalDetalle += precioBase * detalle.Cantidad;
+
+            if (detalle.insumos && detalle.insumos.length > 0) {
+                for (const insumo of detalle.insumos) {
+                    const precioTela = parseFloat(insumo.insumo?.PrecioTela || 0);
+                    const cantidadRequerida = parseFloat(insumo.CantidadRequerida || 0);
+                    subtotalDetalle += precioTela * cantidadRequerida;
                 }
             }
 
-            // Sumar costos de tallas
-            if (detalle.tallas) {
+            if (detalle.tallas && detalle.tallas.length > 0) {
                 for (const talla of detalle.tallas) {
                     const precioTalla = parseFloat(talla.talla?.Precio || 0);
-                    const cantidad = parseInt(talla.Cantidad || 0);
-                    total += precioTalla * cantidad;
+                    const cantidadTalla = parseInt(talla.Cantidad || 0);
+                    subtotalDetalle += precioTalla * cantidadTalla;
                 }
             }
+
+            if (detalle.tecnicas && detalle.tecnicas.length > 0) {
+                for (const tecnica of detalle.tecnicas) {
+                    const costoTecnica = parseFloat(tecnica.CostoTecnica || 0);
+                    subtotalDetalle += costoTecnica * detalle.Cantidad;
+                }
+            }
+
+            total += subtotalDetalle;
         }
 
-        // Actualizar el valor total
         await cotizacion.update({ ValorTotal: total });
-
         return total;
     } catch (error) {
-        console.error('Error calculando valor total:', error);
+        console.error('Error recalculando valor total:', error);
         return 0;
     }
 };
 
-
-
-// NUEVA FUNCIÓN: Crear cotización y decidir si va a Ventas o Cotizaciones
-exports.createCotizacionInteligente = async (req, res) => {
-    try {
-        const { DocumentoID, FechaCotizacion, detalles } = req.body;
-
-        // Validar datos
-        if (!DocumentoID) {
-            return res.status(400).json({ message: 'DocumentoID es obligatorio' });
-        }
-
-        // Validar si hay diseños (técnicas)
-        const tieneDiseños = detalles && detalles.length > 0 &&
-            detalles.some(det => det.tecnicas && det.tecnicas.length > 0);
-
-        if (!tieneDiseños) {
-            // NO TIENE DISEÑOS → Crear VENTA PENDIENTE
-            const { Venta, DetalleVenta } = require('../models');
-            
-            let subtotal = 0;
-            
-            // Calcular subtotal
-            for (const detalle of detalles) {
-                const producto = await Producto.findByPk(detalle.ProductoID);
-                const talla = await Talla.findByPk(detalle.tallas[0]?.TallaID);
-                const tela = await Insumo.findByPk(detalle.insumos[0]?.InsumoID);
-                
-                const precioBase = parseFloat(producto.PrecioBase) || 0;
-                const precioTalla = parseFloat(talla?.Precio) || 0;
-                const precioTela = parseFloat(tela?.PrecioTela) || 0;
-                
-                const precioUnitario = precioBase + precioTalla + precioTela;
-                subtotal += precioUnitario * detalle.Cantidad;
-            }
-
-            // Crear venta con estado "Pendiente" (EstadoID = 8)
-            const nuevaVenta = await Venta.create({
-                DocumentoID,
-                FechaVenta: FechaCotizacion || new Date(),
-                Subtotal: subtotal,
-                Total: subtotal, // Sin IVA por ahora
-                EstadoID: 8 // PENDIENTE
-            });
-
-            // Crear detalles de venta
-            for (const detalle of detalles) {
-                const producto = await Producto.findByPk(detalle.ProductoID);
-                const talla = await Talla.findByPk(detalle.tallas[0]?.TallaID);
-                const tela = await Insumo.findByPk(detalle.insumos[0]?.InsumoID);
-                
-                const precioBase = parseFloat(producto.PrecioBase) || 0;
-                const precioTalla = parseFloat(talla?.Precio) || 0;
-                const precioTela = parseFloat(tela?.PrecioTela) || 0;
-                const precioUnitario = precioBase + precioTalla + precioTela;
-
-                await DetalleVenta.create({
-                    VentaID: nuevaVenta.VentaID,
-                    ProductoID: detalle.ProductoID,
-                    ColorID: detalle.colores[0]?.ColorID || null,
-                    TallaID: detalle.tallas[0]?.TallaID || null,
-                    Cantidad: detalle.Cantidad,
-                    PrecioUnitario: precioUnitario
-                });
-            }
-
-            return res.status(201).json({
-                tipo: 'venta',
-                message: 'Venta pendiente creada exitosamente',
-                venta: nuevaVenta
-            });
-        }
-
-        // SÍ TIENE DISEÑOS → Crear COTIZACIÓN normal
-        const cotizacionData = {
-            DocumentoID,
-            FechaCotizacion: FechaCotizacion || new Date(),
-            ValorTotal: req.body.ValorTotal || 0,
-            EstadoID: 1, // Pendiente
-            detalles
-        };
-
-        // Reutilizar la función existente
-        return await exports.createCotizacionCompleta({ body: cotizacionData }, res);
-
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({
-            message: 'Error al procesar la solicitud',
-            error: error.message
-        });
-    }
-};
-
-
-
-
-
-// Exportar la función
 exports.calcularValorTotalCotizacion = calcularValorTotalCotizacion;

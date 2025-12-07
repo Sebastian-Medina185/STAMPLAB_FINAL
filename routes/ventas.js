@@ -20,4 +20,9 @@ router.put('/:id', ventaController.updateVenta);
 // DELETE /api/ventas/:id - Eliminar una venta
 router.delete('/:id', ventaController.deleteVenta);
 
+
+// Actualizar solo el estado (con lógica de devolución de stock)
+router.patch('/:id/estado', ventaController.updateEstadoVenta);
+
+
 module.exports = router;

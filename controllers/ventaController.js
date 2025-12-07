@@ -167,6 +167,78 @@ exports.crearVenta = async (req, res) => {
     }
 };
 
+// 🆕 ACTUALIZAR ESTADO DE VENTA (con lógica de devolución de stock si se cancela)
+exports.updateEstadoVenta = async (req, res) => {
+    try {
+        const { EstadoID } = req.body;
+        const ventaId = req.params.id;
+
+        if (!EstadoID) {
+            return res.status(400).json({ message: 'EstadoID es requerido' });
+        }
+
+        const venta = await Venta.findByPk(ventaId, {
+            include: [
+                {
+                    model: DetalleVenta,
+                    as: 'detalles'
+                }
+            ]
+        });
+
+        if (!venta) {
+            return res.status(404).json({ message: 'Venta no encontrada' });
+        }
+
+        const estadoAnterior = venta.EstadoID;
+        const estadoNuevo = parseInt(EstadoID);
+
+        console.log('\n' + '='.repeat(60));
+        console.log('CAMBIO DE ESTADO DE VENTA');
+        console.log('='.repeat(60));
+        console.log(`Venta ID: ${ventaId}`);
+        console.log(`Estado anterior: ${estadoAnterior}`);
+        console.log(`Estado nuevo: ${estadoNuevo}`);
+
+        // 🔄 LÓGICA: Si se cancela una venta pendiente, DEVOLVER el stock
+        // EstadoID 10 = Cancelada (verifica con tu tabla Estados)
+        if (estadoAnterior === 8 && estadoNuevo === 10) {
+            console.log('\n📦 DEVOLVIENDO STOCK (venta cancelada)...');
+            
+            for (const detalle of venta.detalles) {
+                await InventarioProducto.increment('Stock', {
+                    by: detalle.Cantidad,
+                    where: {
+                        ProductoID: detalle.ProductoID,
+                        ColorID: detalle.ColorID,
+                        TallaID: detalle.TallaID
+                    }
+                });
+
+                console.log(`   ✓ Devuelto ${detalle.Cantidad} unidades de Producto ${detalle.ProductoID}`);
+            }
+        }
+
+        // Actualizar el estado
+        await venta.update({ EstadoID: estadoNuevo });
+
+        console.log('='.repeat(60) + '\n');
+
+        res.json({
+            message: 'Estado actualizado exitosamente',
+            venta,
+            stockDevuelto: estadoAnterior === 8 && estadoNuevo === 10
+        });
+
+    } catch (error) {
+        console.error('Error al actualizar estado:', error);
+        res.status(500).json({
+            message: 'Error al actualizar estado',
+            error: error.message
+        });
+    }
+};
+
 // ACTUALIZAR VENTA COMPLETA (con detalles)
 exports.updateVenta = async (req, res) => {
     try {
@@ -228,24 +300,51 @@ exports.updateVenta = async (req, res) => {
     }
 };
 
-// Eliminar una venta
+// Eliminar una venta (con devolución de stock)
 exports.deleteVenta = async (req, res) => {
     try {
-        const venta = await Venta.findByPk(req.params.id);
+        const venta = await Venta.findByPk(req.params.id, {
+            include: [
+                {
+                    model: DetalleVenta,
+                    as: 'detalles'
+                }
+            ]
+        });
 
         if (!venta) {
             return res.status(404).json({ message: 'Venta no encontrada' });
         }
 
-        // Eliminar primero los detalles
+        console.log('\n🗑️ ELIMINANDO VENTA Y DEVOLVIENDO STOCK...');
+
+        // DEVOLVER STOCK si la venta estaba pendiente
+        if (venta.EstadoID === 8) {
+            for (const detalle of venta.detalles) {
+                await InventarioProducto.increment('Stock', {
+                    by: detalle.Cantidad,
+                    where: {
+                        ProductoID: detalle.ProductoID,
+                        ColorID: detalle.ColorID,
+                        TallaID: detalle.TallaID
+                    }
+                });
+                console.log(`   ✓ Stock devuelto: ${detalle.Cantidad} unidades`);
+            }
+        }
+
+        // Eliminar detalles
         await DetalleVenta.destroy({
             where: { VentaID: req.params.id }
         });
 
-        // Luego eliminar la venta
+        // Eliminar venta
         await venta.destroy();
 
-        res.json({ message: 'Venta eliminada exitosamente' });
+        res.json({ 
+            message: 'Venta eliminada exitosamente',
+            stockDevuelto: venta.EstadoID === 8
+        });
     } catch (error) {
         res.status(500).json({
             message: 'Error al eliminar venta',
@@ -254,16 +353,14 @@ exports.deleteVenta = async (req, res) => {
     }
 };
 
-// Obtener datos para el dashboard de medición de desempeño
+// Dashboard (sin cambios)
 exports.getDashboardData = async (req, res) => {
     try {
         const { mes, tecnicaId, productoId } = req.query;
 
-        // Construir filtros dinámicos
         let whereVenta = {};
         let whereDetalle = {};
 
-        // Filtro por mes
         if (mes) {
             const mesNum = parseInt(mes);
             whereVenta.FechaVenta = {
@@ -274,17 +371,14 @@ exports.getDashboardData = async (req, res) => {
             };
         }
 
-        // Filtro por técnica
         if (tecnicaId) {
             whereDetalle.TecnicaID = parseInt(tecnicaId);
         }
 
-        // Filtro por producto
         if (productoId) {
             whereDetalle.ProductoID = parseInt(productoId);
         }
 
-        // 1. VENTAS POR TÉCNICAS (agrupado por mes)
         const ventasPorTecnicas = await DetalleVenta.findAll({
             attributes: [
                 [sequelize.fn('MONTH', sequelize.col('venta.FechaVenta')), 'mes'],
@@ -309,7 +403,6 @@ exports.getDashboardData = async (req, res) => {
             raw: true
         });
 
-        // 2. PRODUCTOS MÁS VENDIDOS (agrupado por mes)
         const productosMasVendidos = await DetalleVenta.findAll({
             attributes: [
                 [sequelize.fn('MONTH', sequelize.col('venta.FechaVenta')), 'mes'],
@@ -334,7 +427,6 @@ exports.getDashboardData = async (req, res) => {
             raw: true
         });
 
-        // 3. INSUMOS MÁS UTILIZADOS (basado en las telas de los productos vendidos)
         const insumosUtilizados = await DetalleVenta.findAll({
             attributes: [
                 [sequelize.fn('MONTH', sequelize.col('venta.FechaVenta')), 'mes'],
@@ -375,7 +467,6 @@ exports.getDashboardData = async (req, res) => {
             raw: true
         });
 
-        // Formatear datos para el frontend (nombres de meses)
         const mesesNombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         
         const formatearDatos = (datos) => {

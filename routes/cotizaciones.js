@@ -9,16 +9,18 @@ router.get('/', cotizacionController.getAllCotizaciones);
 // GET /api/cotizaciones/:id - Obtener una cotización por ID
 router.get('/:id', cotizacionController.getCotizacionById);
 
-// POST /api/cotizaciones - Crear una nueva cotización (solo cabecera)
-router.post('/', cotizacionController.createCotizacion);
-
-// POST /api/cotizaciones/completa - Crear cotización completa con detalles
-router.post('/completa', cotizacionController.createCotizacionCompleta);
-
 // PUT /api/cotizaciones/:id - Actualizar una cotización
 router.put('/:id', cotizacionController.updateCotizacion);
 
 // DELETE /api/cotizaciones/:id - Eliminar una cotización
 router.delete('/:id', cotizacionController.deleteCotizacion);
+
+
+// RUTA INTELIGENTE (la más importante para el landing)
+router.post('/inteligente', cotizacionController.createCotizacionInteligente);
+
+// Convertir cotización aprobada a venta (con descuento de stock)
+router.post('/:cotizacionID/convertir-a-venta', cotizacionController.convertirCotizacionAVenta);
+
 
 module.exports = router;

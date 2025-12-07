@@ -1,7 +1,16 @@
 // controllers/cotizaciontecnicaController.js
-const { CotizacionTecnica, DetalleCotizacion, Cotizacion, CotizacionTalla, CotizacionInsumo, Talla, Producto, Insumo } = require('../models');
+const { 
+    CotizacionTecnica, 
+    DetalleCotizacion, 
+    Cotizacion 
+} = require('../models');
 
-// Actualizar técnica y recalcular total
+// IMPORTAR LA FUNCIÓN DESDE cotizacionController
+const { calcularValorTotalCotizacion } = require('./cotizacionController');
+
+// ============================================
+// ACTUALIZAR TÉCNICA Y RECALCULAR TOTAL
+// ============================================
 exports.updateCotizacionTecnica = async (req, res) => {
     try {
         const { CostoTecnica, ImagenDiseño, Observaciones } = req.body;
@@ -25,10 +34,10 @@ exports.updateCotizacionTecnica = async (req, res) => {
             Observaciones: Observaciones || cotizacionTecnica.Observaciones
         });
 
-        // RECALCULAR VALOR TOTAL
+        // RECALCULAR VALOR TOTAL usando la función importada
         const cotizacionID = cotizacionTecnica.detalleCotizacion?.CotizacionID;
         if (cotizacionID) {
-            const nuevoTotal = await recalcularValorTotal(cotizacionID);
+            const nuevoTotal = await calcularValorTotalCotizacion(cotizacionID);
             return res.json({
                 message: 'Técnica actualizada y total recalculado',
                 cotizacionTecnica,
@@ -49,112 +58,9 @@ exports.updateCotizacionTecnica = async (req, res) => {
     }
 };
 
-// FUNCIÓN CORREGIDA PARA RECALCULAR VALOR TOTAL
-async function recalcularValorTotal(cotizacionID) {
-    try {
-        const cotizacion = await Cotizacion.findByPk(cotizacionID, {
-            include: [{
-                model: DetalleCotizacion,
-                as: 'detalles',
-                include: [
-                    {
-                        model: Producto,
-                        as: 'producto'
-                    },
-                    {
-                        model: CotizacionTecnica,
-                        as: 'tecnicas'
-                    },
-                    {
-                        model: CotizacionTalla,
-                        as: 'tallas',
-                        include: [{ model: Talla, as: 'talla' }]
-                    },
-                    {
-                        // IMPORTANTE: Incluir insumos (telas)
-                        model: CotizacionInsumo,
-                        as: 'insumos',
-                        include: [{ model: Insumo, as: 'insumo' }]
-                    }
-                ]
-            }]
-        });
-
-        if (!cotizacion) {
-            console.log('Cotización no encontrada');
-            return 0;
-        }
-
-        let total = 0;
-
-        console.log('Recalculando valor total para cotización #' + cotizacionID);
-
-        // Calcular total por cada detalle
-        for (const detalle of cotizacion.detalles) {
-            let subtotalDetalle = 0;
-            
-            console.log(`\nDetalle #${detalle.DetalleCotizacionID}`);
-            console.log(`   Producto: ${detalle.producto?.Nombre}`);
-            console.log(`   Cantidad: ${detalle.Cantidad}`);
-
-            // 1. Precio base del producto
-            const precioBase = parseFloat(detalle.producto?.PrecioBase || 0);
-            const subtotalBase = precioBase * detalle.Cantidad;
-            subtotalDetalle += subtotalBase;
-            console.log(`Precio base: $${precioBase.toLocaleString()} x ${detalle.Cantidad} = $${subtotalBase.toLocaleString()}`);
-
-            // 2. Sumar costos de TELAS (INSUMOS)
-            if (detalle.insumos && detalle.insumos.length > 0) {
-                for (const insumo of detalle.insumos) {
-                    const precioTela = parseFloat(insumo.insumo?.PrecioTela || 0);
-                    const cantidadRequerida = parseFloat(insumo.CantidadRequerida || 0);
-                    const subtotalTela = precioTela * cantidadRequerida;
-                    subtotalDetalle += subtotalTela;
-                    console.log(` Tela (${insumo.insumo?.Nombre}): $${precioTela.toLocaleString()} x ${cantidadRequerida} = $${subtotalTela.toLocaleString()}`);
-                }
-            }
-
-            // 3. Sumar costos de TALLAS
-            if (detalle.tallas && detalle.tallas.length > 0) {
-                for (const talla of detalle.tallas) {
-                    const precioTalla = parseFloat(talla.talla?.Precio || 0);
-                    const cantidadTalla = parseInt(talla.Cantidad || 0);
-                    const subtotalTalla = precioTalla * cantidadTalla;
-                    subtotalDetalle += subtotalTalla;
-                    console.log(`Talla (${talla.talla?.Nombre}): $${precioTalla.toLocaleString()} x ${cantidadTalla} = $${subtotalTalla.toLocaleString()}`);
-                }
-            }
-
-            // 4. Sumar costos de TÉCNICAS
-            if (detalle.tecnicas && detalle.tecnicas.length > 0) {
-                for (const tecnica of detalle.tecnicas) {
-                    const costoTecnica = parseFloat(tecnica.CostoTecnica || 0);
-                    const subtotalTecnica = costoTecnica * detalle.Cantidad;
-                    subtotalDetalle += subtotalTecnica;
-                    console.log(`Técnica: $${costoTecnica.toLocaleString()} x ${detalle.Cantidad} = $${subtotalTecnica.toLocaleString()}`);
-                }
-            }
-
-            console.log(`Subtotal detalle: $${subtotalDetalle.toLocaleString()}`);
-            total += subtotalDetalle;
-        }
-
-        console.log(`\nVALOR TOTAL FINAL: $${total.toLocaleString()}\n`);
-
-        // Actualizar el valor total en la BD
-        await cotizacion.update({ ValorTotal: total });
-        
-        return total;
-    } catch (error) {
-        console.error('Error recalculando valor total:', error);
-        return 0;
-    }
-}
-
-// Exportar funciones
-exports.recalcularValorTotal = recalcularValorTotal;
-
-// Obtener todas las técnicas
+// ============================================
+// OBTENER TODAS LAS TÉCNICAS
+// ============================================
 exports.getAllCotizacionTecnicas = async (req, res) => {
     try {
         const tecnicas = await CotizacionTecnica.findAll({
@@ -166,7 +72,9 @@ exports.getAllCotizacionTecnicas = async (req, res) => {
     }
 };
 
-// Obtener técnica por ID
+// ============================================
+// OBTENER TÉCNICA POR ID
+// ============================================
 exports.getCotizacionTecnicaById = async (req, res) => {
     try {
         const tecnica = await CotizacionTecnica.findByPk(req.params.id, {
@@ -181,7 +89,9 @@ exports.getCotizacionTecnicaById = async (req, res) => {
     }
 };
 
-// Crear técnica
+// ============================================
+// CREAR TÉCNICA
+// ============================================
 exports.createCotizacionTecnica = async (req, res) => {
     try {
         const tecnica = await CotizacionTecnica.create(req.body);
@@ -191,7 +101,9 @@ exports.createCotizacionTecnica = async (req, res) => {
     }
 };
 
-// Eliminar técnica
+// ============================================
+// ELIMINAR TÉCNICA
+// ============================================
 exports.deleteCotizacionTecnica = async (req, res) => {
     try {
         const tecnica = await CotizacionTecnica.findByPk(req.params.id, {
@@ -211,7 +123,7 @@ exports.deleteCotizacionTecnica = async (req, res) => {
         
         // Recalcular total después de eliminar
         if (cotizacionID) {
-            await recalcularValorTotal(cotizacionID);
+            await calcularValorTotalCotizacion(cotizacionID);
         }
         
         res.json({ message: 'Técnica eliminada y total recalculado' });
