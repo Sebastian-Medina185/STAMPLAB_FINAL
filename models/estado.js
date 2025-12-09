@@ -15,12 +15,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'EstadoID',
         as: 'cotizaciones'
       });
-      
-      // Un estado tiene muchas compras
-      Estado.hasMany(models.Compra, { 
-        foreignKey: 'EstadoID',
-        as: 'compras'
-      });
     }
   }
   
@@ -35,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     Tipo: {
-      type: DataTypes.ENUM('cotizacion', 'venta', 'compra'),
+      type: DataTypes.ENUM('cotizacion', 'venta'),
       allowNull: false,
       comment: 'Define a qué módulo pertenece este estado'
     },

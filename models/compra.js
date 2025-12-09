@@ -17,12 +17,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'CompraID',
         as: 'detalles'
       });
-      
-      // Una compra pertenece a un estado
-      Compra.belongsTo(models.Estado, { 
-        foreignKey: 'EstadoID',
-        as: 'estado'
-      });
     }
   }
 
@@ -40,21 +34,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'proveedores',
+        model: 'Proveedor',
         key: 'id'
       },
-      comment: 'FK al id del proveedor (campo nuevo)'
+      comment: 'FK al id del proveedor'
     },
     FechaCompra: {
       type: DataTypes.DATE,
       allowNull: true
-    },
-    EstadoID: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Estados',
-        key: 'EstadoID'
-      }
     }
   }, {
     sequelize,

@@ -19,6 +19,9 @@ router.delete('/:id', cotizacionController.deleteCotizacion);
 // RUTA INTELIGENTE (la más importante para el landing)
 router.post('/inteligente', cotizacionController.createCotizacionInteligente);
 
+// RUTA COMPLETA (desde Dashboard - admin crea cotización manual)
+router.post('/completa', cotizacionController.createCotizacionCompleta);
+
 // Convertir cotización aprobada a venta (con descuento de stock)
 router.post('/:cotizacionID/convertir-a-venta', cotizacionController.convertirCotizacionAVenta);
 
